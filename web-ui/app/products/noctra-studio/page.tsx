@@ -218,7 +218,7 @@ export default function NoctraStudioPage() {
           />
 
           {publishedChannels.length > 0 ? (
-            <div className="mt-10 grid gap-6 md:grid-cols-3">
+            <div className="mt-10 grid gap-6 md:grid-cols-2">
               {publishedChannels.map((channel) => (
                 <ReleaseCard key={channel.id} channel={channel} accent="cyan" />
               ))}

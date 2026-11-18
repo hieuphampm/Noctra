@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { Info, Monitor, Smartphone, Terminal } from "lucide-react";
+import { ShieldCheck, Monitor, Smartphone, Terminal } from "lucide-react";
 import { ReleaseCard } from "@/components/downloads/ReleaseCard";
 import { SectionHeading } from "@/components/shared/SectionHeading";
-import { getReleaseManifests } from "@/lib/content/releases";
+import { getPublishedChannels, getReleaseManifests } from "@/lib/content/releases";
 import { buildPageMetadata } from "@/lib/seo/metadata";
 
 export const metadata = buildPageMetadata({
@@ -14,6 +14,9 @@ export const metadata = buildPageMetadata({
 
 export default function DownloadsPage() {
   const { noctraAi, noctraStudio } = getReleaseManifests();
+  const totalPublished =
+    getPublishedChannels(noctraAi).length +
+    getPublishedChannels(noctraStudio).length;
 
   return (
     <>
@@ -26,16 +29,30 @@ export default function DownloadsPage() {
           />
 
           <div className="mt-8 flex items-start gap-3 rounded-2xl border border-[#67DDF2]/25 bg-[#10131D]/90 p-4 text-sm text-[#969BAD]">
-            <Info
+            <ShieldCheck
               className="mt-0.5 h-5 w-5 shrink-0 text-[#67DDF2]"
               aria-hidden="true"
             />
             <p>
-              No public binary releases have been published to a hosted
-              distribution channel yet. Maintainers can configure release URLs,
-              versions, sizes, and SHA-256 checksums in{" "}
-              <code className="text-[#F5F5FA]">data/releases/</code>, or build
-              directly from the local repository source.
+              {totalPublished > 0 ? (
+                <>
+                  <span className="font-semibold text-[#F5F5FA]">
+                    {totalPublished} release artifact
+                    {totalPublished > 1 ? "s" : ""} available.
+                  </span>{" "}
+                  Downloads are served from private Backblaze B2 object storage
+                  using short-lived signed redirects via{" "}
+                  <code className="text-[#F5F5FA]">/api/download</code>. Always
+                  verify the listed SHA-256 checksum after downloading.
+                </>
+              ) : (
+                <>
+                  No public binary releases have been published yet. Configure
+                  release metadata in{" "}
+                  <code className="text-[#F5F5FA]">data/releases/</code> or
+                  build directly from source below.
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -97,7 +114,7 @@ export default function DownloadsPage() {
             </Link>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2">
             {noctraStudio.channels.map((channel) => (
               <ReleaseCard key={channel.id} channel={channel} accent="cyan" />
             ))}
