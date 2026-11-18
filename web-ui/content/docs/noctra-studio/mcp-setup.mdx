@@ -1,0 +1,26 @@
+---
+title: MCP Setup
+description: Connecting local stdio and remote Streamable HTTP MCP servers using the MCP 2025-03-26 protocol.
+order: 3
+---
+
+## Official MCP Protocol Support
+
+NOCTRA STUDIO includes a native **MCP (2025-03-26)** JSON-RPC 2.0 client in `src-tauri/src/mcp/` supporting two transport modes:
+
+### 1. Local `stdio` Servers
+
+Launch local command-line MCP servers (for example `npx` or `uvx` tools) with an isolated, filtered child-process environment and explicit working directory containment.
+
+```json
+{
+  "name": "filesystem-tools",
+  "transport": "stdio",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-filesystem", "./workspace"]
+}
+```
+
+### 2. Remote `Streamable HTTP` Servers
+
+Connect to HTTP MCP endpoints with `Mcp-Session-Id` session tracking, SSE/JSON response handling, and Bearer/OAuth/custom headers stored in OS Credential Storage.

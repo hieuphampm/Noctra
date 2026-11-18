@@ -1,0 +1,37 @@
+---
+title: Introduction
+description: Overview of the NOCTRA ecosystem, its local-first principles, and how NOCTRA AI and NOCTRA STUDIO work together.
+order: 1
+---
+
+## Welcome to NOCTRA
+
+**NOCTRA** is a privacy-first AI ecosystem designed around user control, local-first storage, and direct provider connectivity.
+
+Instead of locking your conversations, workflows, and credentials inside a proprietary cloud account, NOCTRA separates the **client environment** (your Android device or desktop computer) from the **inference provider** (local models or external OpenAI-compatible APIs you choose).
+
+## The Two Products
+
+### NOCTRA AI (Android)
+
+A focused, privacy-first mobile AI chat application built with Flutter and Dart:
+
+- Direct connections to OpenAI-compatible APIs (`POST /chat/completions`, `GET /models`)
+- Hardware-backed API key storage via Android Keystore (`FlutterSecureStorage`)
+- On-device Hive storage for conversations, system prompts, personas, and prompt templates
+- Local extraction for images and documents (`PDF`, `DOCX`, `XLSX`, `PPTX`, `TXT`, `MD`, `JSON`, `CSV`)
+- Optional biometric lock gate and granular transmission controls
+
+### NOCTRA STUDIO (Desktop)
+
+A desktop AI agent, MCP, Skills, and workflow platform built with Tauri 2, Rust, React, TypeScript, and SQLite:
+
+- Multi-provider OpenAI-compatible chat engine with SSE streaming and tool calls
+- Official **MCP (2025-03-26)** hub supporting `stdio` and `Streamable HTTP` servers
+- **Agent Builder** with directory path containment, tool scoping, and multi-agent orchestration
+- **Skills Center** supporting local `SKILL.md` authoring, ZIP import, and pre-install GitHub repository inspection
+- **Visual Workflow Builder** with node-based DAG execution and human-in-the-loop approval gates
+
+## Privacy & Transmission Model
+
+Both applications contain **zero developer analytics, zero advertising SDKs, and zero mandatory user accounts**. When you send a message or attach a file to a remote AI provider or remote MCP server, that request payload is transmitted directly from your device to the endpoint you configured.

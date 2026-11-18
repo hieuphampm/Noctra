@@ -1,0 +1,43 @@
+{
+  "productId": "noctra-ai",
+  "productName": "NOCTRA AI",
+  "distributionNote": "Public release packages are managed centrally in this file. Channels without a published build URL display a Coming Soon / Unavailable state.",
+  "channels": [
+    {
+      "id": "android-apk",
+      "platform": "Android",
+      "format": "APK",
+      "label": "Android APK",
+      "published": false,
+      "status": "coming_soon",
+      "statusLabel": "Coming Soon — Public APK Not Yet Published",
+      "version": null,
+      "architecture": null,
+      "fileSize": null,
+      "releaseDate": null,
+      "minRequirements": "Android device (built with Flutter; exact minimum API level set at release)",
+      "changelogHref": "/changelog",
+      "sha256": null,
+      "signatureInfo": null,
+      "downloadUrl": null
+    },
+    {
+      "id": "google-play",
+      "platform": "Android",
+      "format": "Google Play",
+      "label": "Google Play Store",
+      "published": false,
+      "status": "unavailable",
+      "statusLabel": "Unavailable — Store Listing Pending",
+      "version": null,
+      "architecture": null,
+      "fileSize": null,
+      "releaseDate": null,
+      "minRequirements": "Android device with Google Play Services",
+      "changelogHref": "/changelog",
+      "sha256": null,
+      "signatureInfo": "Managed by Google Play App Signing once published",
+      "downloadUrl": null
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+---
+title: Workflow Creation
+description: Designing and running pausable, cancellable multi-agent DAG workflows in NOCTRA STUDIO.
+order: 8
+---
+
+## Visual DAG Builder
+
+NOCTRA STUDIO's **Workflow Engine** (`src-tauri/src/workflows/`) executes directed acyclic graphs (DAGs) composed of typed nodes:
+
+- `Start` & `Input` — Entry point and structured run inputs
+- `AI Agent` — Execute a configured agent on upstream context
+- `MCP Tool` & `Skill` — Invoke deterministic tools or Skill steps
+- `Conditional` — Branch execution based on upstream outputs
+- `Approval` — Pause the workflow for explicit human review before proceeding
+- `Delay`, `Output`, & `End` — Timing control and persisted final results
+
+## Live Execution Controls
+
+Runs can be paused, resumed, or canceled mid-flight with a live step timeline and full run history saved in local SQLite storage.

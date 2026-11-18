@@ -1,0 +1,21 @@
+---
+title: File Attachments
+description: Local extraction and inspection of images and documents on Android before sending to an AI provider.
+order: 4
+---
+
+## Supported Formats
+
+NOCTRA AI processes attachments locally on your Android device before building the request payload:
+
+- **Images**: `JPG`, `JPEG`, `PNG`, `WEBP`
+- **Documents**: `PDF`, `DOCX`, `XLSX`, `PPTX`
+- **Text & Data**: `TXT`, `MD`, `JSON`, `CSV`
+
+## Local Extraction Pipeline
+
+Text-bearing documents (`PDF`, Office XML archives, and plain-text formats) are parsed on-device so you can inspect staged content in the attachment preview modal before sending.
+
+## Transmission Control
+
+Attached files are only included in outbound requests when you stage them in the composer and send the message, subject to your per-conversation attachment transmission toggles.

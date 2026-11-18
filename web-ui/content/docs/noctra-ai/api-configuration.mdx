@@ -1,0 +1,20 @@
+---
+title: API Configuration
+description: Endpoint URL validation, headers, streaming SSE transport, and credential storage in NOCTRA AI.
+order: 2
+---
+
+## Request Format
+
+NOCTRA AI communicates via `OpenAiCompatibleClient` using standard `POST /chat/completions` and `GET /models` calls with Server-Sent Events (`SseStreamParser`) for real-time token streaming.
+
+## URL Security Validation
+
+The built-in `url_validator` normalizes base URLs and enforces secure transport rules:
+
+- Remote endpoints should use `https://`.
+- Plaintext `http://` is intended only for local development or trusted LAN endpoints (such as `http://192.168.x.x:11434/v1`).
+
+## Keystore Credential Storage
+
+API keys are written exclusively to Android Keystore-backed storage via `FlutterSecureStorage`. Keys are never stored inside Hive conversation boxes or plain-text `SharedPreferences`.

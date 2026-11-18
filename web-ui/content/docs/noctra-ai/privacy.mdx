@@ -1,0 +1,17 @@
+---
+title: Privacy
+description: Understanding NOCTRA AI's zero-telemetry guarantees and external provider transmission boundaries.
+order: 6
+---
+
+## What Stays on Your Device
+
+- **No developer backend**: NOCTRA AI does not connect to any NOCTRA-operated server.
+- **No analytics or ads**: Zero telemetry SDKs, crash uploaders, or ad trackers are bundled.
+- **Biometric Lock Gate**: Optional device authentication (`local_auth`) protects app access on-device.
+
+## What Is Transmitted Externally
+
+When you send a chat message to an external AI provider (for example a cloud API endpoint), your prompt, any selected conversation history, and any staged attachment text/images are transmitted directly from your Android device to that provider's servers.
+
+> Always review the privacy policy and data retention terms of the third-party AI provider you configure.

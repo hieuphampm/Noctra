@@ -1,0 +1,46 @@
+# OS & Editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Environment & Secrets
+.env
+.env.*
+!.env.example
+local.properties
+key.properties
+*.jks
+*.keystore
+*.pem
+*.key
+
+# Node / Web / Desktop Frontend
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Rust / Tauri
+desktop/src-tauri/target/
+
+# Flutter / Dart / Android
+android/.dart_tool/
+android/.flutter-plugins-dependencies
+android/build/
+android/.pub/
+android/.pub-cache/
+android/coverage/
+**/.gradle/
+
+# Built Release Binaries (distributed via GitHub Releases)
+android/releases/
+desktop/releases/

@@ -1,0 +1,17 @@
+---
+title: MCP Server Management
+description: Health checks, bounded auto-reconnect, Tool Explorer schema validation, and redacted diagnostics.
+order: 4
+---
+
+## Simultaneous Server Lifecycle
+
+MCP Hub manages multiple active servers concurrently, providing:
+
+- `ping` health monitoring and bounded automatic reconnection
+- Strict JSON Schema input validation (`jsonschema`) before invoking tools
+- Unified **Tool Explorer** for manually testing tools and inspecting exposed **Resources** and **Prompts**
+
+## Redacted Diagnostics
+
+All MCP logs and error messages pass through `SecretRedactor` to scrub `Bearer` tokens, `sk-` keys, `ghp_` tokens, and registered secret environment variables.

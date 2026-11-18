@@ -1,0 +1,29 @@
+---
+title: Desktop Installation
+description: Supported target operating systems, runtime prerequisites, and source build instructions for NOCTRA STUDIO.
+order: 1
+---
+
+## Target Platforms
+
+NOCTRA STUDIO is built with **Tauri 2** and **Rust**, targeting:
+
+- **Windows** (10 / 11 x64 with Microsoft Edge WebView2)
+- **macOS** (Apple Silicon & Intel via WebKit)
+- **Linux** (x86_64 with `libwebkit2gtk-4.1`)
+
+Check the [Download Center](/downloads) for the current publication status of binary installers.
+
+## Building Locally from `desktop/`
+
+```bash
+cd desktop
+npm install
+npm run tauri dev
+```
+
+To build a release bundle for your current operating system:
+
+```bash
+npm run tauri build
+```

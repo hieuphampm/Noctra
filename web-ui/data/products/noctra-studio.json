@@ -1,0 +1,93 @@
+{
+  "id": "noctra-studio",
+  "name": "NOCTRA STUDIO",
+  "category": "Desktop Platform",
+  "platformLabel": "Desktop",
+  "headline": "Build Your Own AI Ecosystem.",
+  "tagline": "YOUR AI. YOUR AGENTS. YOUR ECOSYSTEM.",
+  "shortDescription": "A powerful desktop AI platform for building custom agents, connecting MCP servers, managing Skills, and orchestrating intelligent workflows.",
+  "overview": "Engineered with Tauri 2, Rust, React, TypeScript, and SQLite, NOCTRA STUDIO runs locally on your computer with OS-backed credential storage, official MCP (2025-03-26) connectivity, GitHub Skills inspection, and a deterministic node-based Workflow Execution Engine.",
+  "accent": "#67DDF2",
+  "secondaryAccent": "#A78BFA",
+  "ctaLabel": "Explore NOCTRA STUDIO",
+  "href": "/products/noctra-studio",
+  "techStack": [
+    "Tauri 2 & Rust Core",
+    "React 19 & TypeScript",
+    "SQLite Local Database (rusqlite)",
+    "OS Keyring Credential Store",
+    "MCP 2025-03-26 (stdio & Streamable HTTP)"
+  ],
+  "features": [
+    {
+      "title": "Multi-Provider AI Engine",
+      "description": "Configure OpenAI-compatible endpoints with SSE streaming, automatic JSON fallback, incremental tool-call assembly, and local attachments."
+    },
+    {
+      "title": "MCP Hub & Tool Explorer",
+      "description": "Connect simultaneous stdio and Streamable HTTP MCP servers with health checks, JSON Schema validation, and resource/prompt inspection."
+    },
+    {
+      "title": "External MCP Integrations",
+      "description": "Plug into official MCP registries, local filesystem/developer tools, and remote HTTP endpoints with filtered environments."
+    },
+    {
+      "title": "Agent Builder",
+      "description": "Define agent identity, model overrides, assigned MCP tools, Skills, workspace path containment, and execution limits."
+    },
+    {
+      "title": "Skills Center & Marketplace",
+      "description": "Author SKILL.md modules locally or discover packages via pluggable marketplace adapters with untrusted-by-default safeguards."
+    },
+    {
+      "title": "GitHub Skills Installation",
+      "description": "Inspect repository trees, branches, commits, and SKILL.md files before installing—supporting files are never auto-executed."
+    },
+    {
+      "title": "Multi-Agent Orchestration",
+      "description": "Run sequential and parallel multi-agent pipelines with isolated agent memory and bounded recursion depth (maxAgentDepth)."
+    },
+    {
+      "title": "Visual Workflow Builder",
+      "description": "Design pausable, cancellable DAG workflows using Start, Input, AI Agent, MCP Tool, Skill, Conditional, Approval, Delay, Output, and End nodes."
+    },
+    {
+      "title": "Permission-Controlled Execution",
+      "description": "Enforce Ask Every Time, Session, Always Allow, or Deny policies with interactive approval modals showing exact tool arguments and target paths."
+    }
+  ],
+  "subsystems": [
+    {
+      "name": "AI Chat Engine",
+      "module": "src-tauri/src/ai/",
+      "summary": "OpenAI-compatible HTTP + SSE client with Direct Chat Mode, Agent Mode, message branching/regeneration, and multimodal attachments."
+    },
+    {
+      "name": "MCP Hub",
+      "module": "src-tauri/src/mcp/",
+      "summary": "Spec-compliant MCP 2025-03-26 JSON-RPC 2.0 client over stdio and Streamable HTTP with Mcp-Session-Id and redacted logs."
+    },
+    {
+      "name": "Agent Runtime",
+      "module": "src-tauri/src/agents/",
+      "summary": "Deterministic tool-filtering loop enforcing maxSteps, maxToolCalls, maxRuntimeSecs, and project path containment."
+    },
+    {
+      "name": "Skills & Marketplace",
+      "module": "src-tauri/src/skills/",
+      "summary": "SKILL.md YAML frontmatter + Markdown parser, GitHub repo/subdir inspector, ZIP/local importer, and catalog adapters."
+    },
+    {
+      "name": "Workflow Engine",
+      "module": "src-tauri/src/workflows/",
+      "summary": "Live DAG executor with human-in-the-loop Approval gates, live timeline inspection, and persisted run history."
+    }
+  ],
+  "securityModel": [
+    "Untrusted by default: external GitHub Skills, marketplace packages, and third-party MCP servers are flagged unverified until explicitly trusted.",
+    "No automatic script execution: Skill scripts/ directories are indexed as metadata only and never run automatically.",
+    "OS-native credential storage via keyring (Windows Credential Manager, macOS Keychain, Linux Secret Service) plus SecretRedactor log scrubbing.",
+    "Canonicalized path containment keeps project file operations inside authorized root directories."
+  ],
+  "transmissionNotice": "NOCTRA STUDIO runs locally with zero developer telemetry. When you invoke a cloud AI provider, remote Streamable HTTP MCP server, or fetch a GitHub Skill repository, requests are sent directly to those configured external endpoints."
+}

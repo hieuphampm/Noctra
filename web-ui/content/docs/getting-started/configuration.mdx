@@ -1,0 +1,27 @@
+---
+title: Configuration
+description: Core provider, model, and workspace configuration concepts shared across the NOCTRA ecosystem.
+order: 4
+---
+
+## OpenAI-Compatible Endpoint Standard
+
+NOCTRA standardizes around the OpenAI-compatible HTTP REST and Server-Sent Events (SSE) specification:
+
+- `GET /models` — Discovers available model IDs from your configured endpoint
+- `POST /chat/completions` — Sends messages, optional system prompts, multimodal inputs, and (in NOCTRA STUDIO) tool schemas
+
+## Base URL Normalization
+
+You can enter a root provider URL (for example `https://api.example.com/v1` or `http://127.0.0.1:11434/v1`). Both clients validate and normalize trailing slashes before issuing requests.
+
+```json
+{
+  "name": "Local Ollama",
+  "baseUrl": "http://127.0.0.1:11434/v1",
+  "defaultModel": "qwen2.5:14b",
+  "streaming": true
+}
+```
+
+> Use `https://` for any endpoint outside localhost or your trusted private network.

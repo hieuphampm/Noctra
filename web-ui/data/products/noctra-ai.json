@@ -1,0 +1,68 @@
+{
+  "id": "noctra-ai",
+  "name": "NOCTRA AI",
+  "category": "Mobile Application",
+  "platformLabel": "Android",
+  "headline": "Your Personal AI Space.",
+  "tagline": "Private Intelligence. Your Own Space.",
+  "shortDescription": "A privacy-first AI chat application for Android. Connect your preferred OpenAI-compatible providers, manage conversations locally, and interact with AI on your own terms.",
+  "overview": "Built with Flutter and Dart in a clean local-first architecture, NOCTRA AI connects directly from your Android device to any OpenAI-compatible endpoint—whether cloud APIs or self-hosted models via Ollama and LM Studio—without developer accounts or telemetry.",
+  "accent": "#A78BFA",
+  "secondaryAccent": "#67DDF2",
+  "ctaLabel": "Explore NOCTRA AI",
+  "href": "/products/noctra-ai",
+  "techStack": [
+    "Flutter & Dart",
+    "Material 3 Dark & AMOLED Theme",
+    "Hive Local Encrypted-Ready Vault",
+    "Android Keystore (FlutterSecureStorage)",
+    "Biometric Lock Gate (local_auth)"
+  ],
+  "features": [
+    {
+      "title": "OpenAI-Compatible APIs",
+      "description": "Connect directly to POST /chat/completions and GET /models endpoints across cloud or local inference servers."
+    },
+    {
+      "title": "Custom Model Configuration",
+      "description": "Configure base URLs, model identifiers, system prompts, and custom parameters per provider or conversation."
+    },
+    {
+      "title": "Multiple AI Providers",
+      "description": "Switch effortlessly between configured providers, test connectivity before saving, and assign defaults."
+    },
+    {
+      "title": "Local Conversation Storage",
+      "description": "Conversations, messages, personas, and prompt templates stay on-device in Hive storage with JSON/Markdown export."
+    },
+    {
+      "title": "Secure API Key Storage",
+      "description": "Credentials are stored exclusively in Android Keystore-backed encrypted storage—never in plain text or exported backups."
+    },
+    {
+      "title": "Image & Document Attachments",
+      "description": "Extract and inspect PDF, DOCX, XLSX, PPTX, TXT, MD, JSON, CSV, and image files locally on your device before transmission."
+    },
+    {
+      "title": "Streaming AI Responses",
+      "description": "Real-time Server-Sent Events (SSE) token streaming with Markdown, syntax-highlighted code blocks, and LaTeX math rendering."
+    },
+    {
+      "title": "Dark & AMOLED Interface",
+      "description": "Designed around a deep obsidian palette (#090B10) with optional true-black AMOLED mode and biometric app lock."
+    }
+  ],
+  "attachmentFormats": {
+    "images": ["JPG", "JPEG", "PNG", "WEBP"],
+    "documents": ["PDF", "DOCX", "XLSX", "PPTX"],
+    "textAndData": ["TXT", "MD", "JSON", "CSV"]
+  },
+  "privacyControls": [
+    "Zero analytics SDKs, crash-reporting uploaders, or advertising trackers",
+    "No mandatory user account or developer-operated relay server",
+    "Android Keystore-backed API key storage with automatic secret redaction on export",
+    "Granular transmission controls for prior chat history and attachments",
+    "Optional biometric lock gate and local auto-deletion / full data wipe"
+  ],
+  "transmissionNotice": "When you send a prompt or include an attachment, NOCTRA AI transmits that request directly from your device to the external or local AI provider endpoint you configured, subject to that provider's terms and privacy policy."
+}

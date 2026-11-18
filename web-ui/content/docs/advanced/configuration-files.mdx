@@ -1,0 +1,29 @@
+---
+title: Configuration Files
+description: Where NOCTRA AI and NOCTRA STUDIO store local state, databases, and website release metadata.
+order: 3
+---
+
+## Client Application State
+
+- **NOCTRA AI (`android/`)**: Persists conversations, prompts, and non-secret settings locally in Hive boxes; stores API keys in Android Keystore via `FlutterSecureStorage`.
+- **NOCTRA STUDIO (`desktop/`)**: Persists chats, agents, MCP definitions, Skills metadata, permissions, and workflow runs in local SQLite (`rusqlite`) with schema versioning; stores secrets in OS `keyring`.
+
+## Website Content & Release Metadata (`web-ui/`)
+
+Product metadata, release manifests, documentation, and changelogs are centralized:
+
+```text
+web-ui/
+  data/
+    site-config.ts
+    products/
+      noctra-ai.json
+      noctra-studio.json
+    releases/
+      noctra-ai.json
+      noctra-studio.json
+  content/
+    docs/
+    changelog/
+```

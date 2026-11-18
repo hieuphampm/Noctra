@@ -1,0 +1,17 @@
+---
+title: GitHub Integration
+description: Inspecting GitHub repositories, branches, commits, and subdirectories before installing Skills.
+order: 7
+---
+
+## Inspect Before Installing
+
+NOCTRA STUDIO includes a GitHub Skill inspector (`src-tauri/src/skills/`) that lets you review external Skills safely prior to installation:
+
+1. Enter a GitHub repository URL, optional subdirectory path, branch, or commit reference.
+2. Preview the repository file tree and read the rendered `SKILL.md` manifest inside the app.
+3. Verify that the instructions and permissions match your expectations before confirming import.
+
+## Untrusted-by-Default Tagging
+
+Imported GitHub Skills retain source provenance metadata and remain tagged `unverified` until you explicitly mark them trusted.

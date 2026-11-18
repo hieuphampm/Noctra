@@ -1,0 +1,19 @@
+---
+title: Provider Configuration
+description: Configuring OpenAI-compatible AI providers and OS keyring secrets in NOCTRA STUDIO.
+order: 2
+---
+
+## Multi-Provider Setup
+
+In **NOCTRA STUDIO → Providers**, configure one or more OpenAI-compatible endpoints (`POST /chat/completions`, `GET /models`) with support for SSE streaming and automatic JSON fallback.
+
+## OS Keyring Secret Isolation
+
+API keys are saved in your operating system's native credential vault via `keyring`:
+
+- **Windows**: Windows Credential Manager
+- **macOS**: Keychain
+- **Linux**: Secret Service (e.g., GNOME Keyring / KWallet)
+
+Credentials are never stored in SQLite or included in portable workspace exports.

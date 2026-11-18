@@ -1,0 +1,18 @@
+---
+title: Agent Creation
+description: Building custom AI agents with dedicated models, assigned Skills, MCP tools, and execution guardrails.
+order: 5
+---
+
+## Agent Configuration
+
+From **Agent Builder**, every agent is configured with explicit boundaries:
+
+- **Identity & System Instructions**: Role definition, behavior rules, and starter templates (General, Research, Coding, File Management, Browser Research, Data Analyst, Writing, Automation).
+- **Model Override**: Pin a specific provider and model per agent.
+- **Deterministic Tool Filtering**: An agent only receives tools that are globally enabled in MCP Hub, explicitly assigned to the agent, and permitted by the active project scope.
+- **Execution Guardrails**: Configure `maxSteps`, `maxToolCalls`, `maxRuntimeSecs`, and `maxAgentDepth` for multi-agent delegation.
+
+## Path Containment
+
+Project-scoped agents operate with canonicalized path verification so file tool arguments cannot escape authorized project directories.

@@ -1,0 +1,16 @@
+---
+title: Security Model
+description: Defense-in-depth guarantees, credential isolation, path containment, and transmission boundaries.
+order: 2
+---
+
+## Core Security Principles
+
+1. **OS Credential Isolation**: API keys and MCP auth secrets live in Android Keystore (`NOCTRA AI`) or OS Keyring (`NOCTRA STUDIO`), never in plain-text config exports or SQLite/Hive databases.
+2. **Untrusted by Default**: Third-party GitHub Skills, marketplace packages, and external MCP servers start as `unverified` and never execute supporting scripts automatically.
+3. **Secret Redaction**: Logs and diagnostic errors in NOCTRA STUDIO pass through `SecretRedactor` to scrub tokens and credentials.
+4. **Canonicalized Path Containment**: Project-scoped file operations are resolved canonically and bounded to authorized project directories.
+
+## Network & Provider Boundaries
+
+Local-first storage protects data at rest on your device, but NOCTRA cannot control how third-party AI providers or remote MCP servers handle data once transmitted to their endpoints. Use local inference models when strict air-gapped processing is required.

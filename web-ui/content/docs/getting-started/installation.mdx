@@ -1,0 +1,40 @@
+---
+title: Installation
+description: How to obtain NOCTRA AI and NOCTRA STUDIO or build directly from the workspace source repositories.
+order: 2
+---
+
+## Release Availability
+
+Publicly hosted binary installers and store listings are published in the [Download Center](/downloads) when available. When a channel is marked **Coming Soon** or **Unavailable**, no public hosted download link has been published yet.
+
+## Building from Source (Repository Maintainers)
+
+If you are working directly with the NOCTRA monorepo (`android/` and `desktop/`), you can build both applications locally.
+
+### NOCTRA AI (Android)
+
+Prerequisites: Flutter SDK (Dart `^3.13.7`) and Android SDK / platform tools.
+
+```bash
+cd android
+flutter pub get
+flutter test
+flutter build apk --release
+```
+
+The release APK is generated at `android/build/app/outputs/flutter-apk/app-release.apk`.
+
+### NOCTRA STUDIO (Desktop)
+
+Prerequisites: Node.js `20+`, npm `10+`, Rust stable toolchain (`rustup`), and platform WebView dependencies (WebView2 on Windows, Xcode CLT on macOS, or `libwebkit2gtk-4.1-dev` on Ubuntu/Debian).
+
+```bash
+cd desktop
+npm install
+npm run typecheck
+npm test
+npm run tauri build
+```
+
+Platform bundles are written under `desktop/src-tauri/target/release/bundle/`.

@@ -1,0 +1,16 @@
+---
+title: Troubleshooting
+description: Common diagnostics for OpenAI-compatible endpoints, local Ollama/LM Studio connections, and MCP servers.
+order: 1
+---
+
+## Provider Connection Failures
+
+- **Check Base URL format**: Ensure the URL points to the API root (commonly ending in `/v1`) and test with `GET /models`.
+- **Local servers on Android**: `127.0.0.1` on an Android phone refers to the phone itself, not your desktop computer. Use your workstation's LAN IP address when connecting NOCTRA AI to a desktop Ollama or LM Studio instance.
+- **TLS / HTTPS issues**: Public endpoints should always use valid HTTPS certificates.
+
+## MCP Server Startup Issues (NOCTRA STUDIO)
+
+- Verify the executable (`npx`, `uvx`, `node`, `python`) is installed and reachable on your system `PATH`.
+- Check the redacted diagnostic logs inside MCP Hub for JSON-RPC handshake or schema validation errors.

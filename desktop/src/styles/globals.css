@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-canvas: #090b10;
+    --bg-sidebar: #0d1018;
+    --bg-panel: #121622;
+    --bg-elevated: #191e2c;
+    --accent-primary: #a78bfa;
+    --accent-secondary: #67ddf2;
+    --text-main: #f3f4f8;
+    --text-secondary: #9399aa;
+    --border-subtle: #252b3a;
+  }
+
+  * {
+    box-sizing: border-box;
+    border-color: var(--border-subtle);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: #090b10;
+    color: #f3f4f8;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #252b3a;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #353e54;
+}
+
+/* Crisp Markdown + Highlight.js Dark Theme inside Chat & Skill Preview */
+.noctra-prose {
+  color: #f3f4f8;
+  line-height: 1.6;
+  font-size: 0.92rem;
+}
+
+.noctra-prose p {
+  margin: 0.5rem 0;
+}
+
+.noctra-prose h1,
+.noctra-prose h2,
+.noctra-prose h3 {
+  color: #f3f4f8;
+  font-weight: 600;
+  margin: 0.9rem 0 0.4rem;
+}
+
+.noctra-prose h1 {
+  font-size: 1.25rem;
+}
+
+.noctra-prose h2 {
+  font-size: 1.08rem;
+}
+
+.noctra-prose h3 {
+  font-size: 0.98rem;
+}
+
+.noctra-prose ul,
+.noctra-prose ol {
+  margin: 0.4rem 0 0.4rem 1.25rem;
+}
+
+.noctra-prose ul {
+  list-style-type: disc;
+}
+
+.noctra-prose ol {
+  list-style-type: decimal;
+}
+
+.noctra-prose code:not(pre code) {
+  background: #191e2c;
+  color: #67ddf2;
+  padding: 0.12rem 0.35rem;
+  border-radius: 0.3rem;
+  font-size: 0.84em;
+  font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+}
+
+.noctra-prose pre {
+  background: #0b0e16;
+  border: 1px solid #252b3a;
+  border-radius: 0.55rem;
+  padding: 0.85rem;
+  overflow-x: auto;
+  margin: 0.65rem 0;
+  font-size: 0.83rem;
+  font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+}
+
+.noctra-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.6rem 0;
+  font-size: 0.85rem;
+}
+
+.noctra-prose th,
+.noctra-prose td {
+  border: 1px solid #252b3a;
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+}
+
+.noctra-prose th {
+  background: #191e2c;
+}
+
+.noctra-prose blockquote {
+  border-left: 3px solid #a78bfa;
+  padding-left: 0.8rem;
+  color: #9399aa;
+  margin: 0.6rem 0;
+}
+
+.hljs-keyword,
+.hljs-selector-tag {
+  color: #a78bfa;
+}
+.hljs-string,
+.hljs-attr {
+  color: #67ddf2;
+}
+.hljs-number,
+.hljs-literal {
+  color: #f59e0b;
+}
+.hljs-comment {
+  color: #64748b;
+  font-style: italic;
+}
+.hljs-title,
+.hljs-function {
+  color: #93c5fd;
+}

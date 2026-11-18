@@ -1,0 +1,61 @@
+{
+  "productId": "noctra-studio",
+  "productName": "NOCTRA STUDIO",
+  "distributionNote": "Public desktop installers are managed centrally in this file. Only platforms with verified, publicly hosted builds show active download links.",
+  "channels": [
+    {
+      "id": "windows-installer",
+      "platform": "Windows",
+      "format": "NSIS (.exe) / MSI",
+      "label": "Windows Installer",
+      "published": false,
+      "status": "coming_soon",
+      "statusLabel": "Coming Soon — Public Installer Not Yet Published",
+      "version": null,
+      "architecture": "x64",
+      "fileSize": null,
+      "releaseDate": null,
+      "minRequirements": "Windows 10 / 11 (64-bit) with WebView2 Runtime",
+      "changelogHref": "/changelog",
+      "sha256": null,
+      "signatureInfo": null,
+      "downloadUrl": null
+    },
+    {
+      "id": "macos-installer",
+      "platform": "macOS",
+      "format": "DMG / Universal",
+      "label": "macOS Installer",
+      "published": false,
+      "status": "unavailable",
+      "statusLabel": "Unavailable — macOS Build Pending",
+      "version": null,
+      "architecture": null,
+      "fileSize": null,
+      "releaseDate": null,
+      "minRequirements": "macOS (Apple Silicon / Intel target via Tauri 2)",
+      "changelogHref": "/changelog",
+      "sha256": null,
+      "signatureInfo": null,
+      "downloadUrl": null
+    },
+    {
+      "id": "linux-package",
+      "platform": "Linux",
+      "format": "AppImage / DEB",
+      "label": "Linux Package",
+      "published": false,
+      "status": "unavailable",
+      "statusLabel": "Unavailable — Linux Build Pending",
+      "version": null,
+      "architecture": null,
+      "fileSize": null,
+      "releaseDate": null,
+      "minRequirements": "Linux x86_64 with WebKitGTK 4.1",
+      "changelogHref": "/changelog",
+      "sha256": null,
+      "signatureInfo": null,
+      "downloadUrl": null
+    }
+  ]
+}

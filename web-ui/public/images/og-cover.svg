@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <radialGradient id="glowV" cx="30%" cy="25%" r="55%">
+      <stop offset="0%" stop-color="#A78BFA" stop-opacity="0.28" />
+      <stop offset="100%" stop-color="#080A10" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="glowC" cx="75%" cy="75%" r="50%">
+      <stop offset="0%" stop-color="#67DDF2" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#080A10" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="accentLine" x1="120" y1="0" x2="520" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#A78BFA" />
+      <stop offset="100%" stop-color="#67DDF2" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#080A10" />
+  <rect width="1200" height="630" fill="url(#glowV)" />
+  <rect width="1200" height="630" fill="url(#glowC)" />
+  <rect x="56" y="56" width="1088" height="518" rx="28" fill="#10131D" fill-opacity="0.72" stroke="rgba(255,255,255,0.1)" />
+  <rect x="120" y="130" width="64" height="64" rx="18" fill="#171B28" stroke="rgba(255,255,255,0.14)" />
+  <path d="M138 176V148L166 176V148" stroke="url(#accentLine)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+  <text x="208" y="174" fill="#F5F5FA" font-family="system-ui, -apple-system, sans-serif" font-size="34" font-weight="700" letter-spacing="8">NOCTRA</text>
+  <text x="120" y="290" fill="#F5F5FA" font-family="system-ui, -apple-system, sans-serif" font-size="62" font-weight="700">Your AI. Your Rules.</text>
+  <text x="120" y="366" fill="#A78BFA" font-family="system-ui, -apple-system, sans-serif" font-size="62" font-weight="700">Your Own Ecosystem.</text>
+  <text x="120" y="444" fill="#969BAD" font-family="system-ui, -apple-system, sans-serif" font-size="26">NOCTRA AI (Android) &amp; NOCTRA STUDIO (Desktop Agent &amp; MCP Platform)</text>
+  <rect x="120" y="492" width="220" height="4" rx="2" fill="url(#accentLine)" />
+</svg>

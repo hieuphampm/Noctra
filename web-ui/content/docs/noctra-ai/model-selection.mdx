@@ -1,0 +1,17 @@
+---
+title: Model Selection
+description: Selecting models dynamically from GET /models or entering custom model identifiers in NOCTRA AI.
+order: 3
+---
+
+## Discovering Models
+
+When a provider supports `GET /models`, NOCTRA AI fetches the model list during provider setup and allows quick selection in the chat header.
+
+## Custom Model Identifiers
+
+If your endpoint does not expose `/models` or uses custom model aliases, you can enter any model string manually in the provider configuration.
+
+## Context Window & Token Estimation
+
+NOCTRA AI includes a heuristic `token_estimator` and context-window builder to help manage how many prior turns are included in each request payload.

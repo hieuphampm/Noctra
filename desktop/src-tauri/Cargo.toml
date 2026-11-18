@@ -1,0 +1,38 @@
+[package]
+name = "noctra-studio"
+version = "0.1.0"
+description = "NOCTRA STUDIO — Privacy-First Desktop AI Agent Platform"
+authors = ["NOCTRA STUDIO"]
+edition = "2021"
+
+[lib]
+name = "noctra_studio_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+rusqlite = { version = "0.32", features = ["bundled"] }
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+futures-util = "0.3"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2"
+regex = "1"
+url = "2"
+base64 = "0.22"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+keyring = { version = "3", features = ["windows-native", "apple-native", "sync-secret-service"] }
+jsonschema = { version = "0.18", default-features = false }
+
+[dev-dependencies]
+tempfile = "3"
+axum = "0.7"

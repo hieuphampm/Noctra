@@ -1,0 +1,20 @@
+---
+title: Permission Management
+description: Scoped tool authorization rules, interactive approval modals, and project containment in NOCTRA STUDIO.
+order: 9
+---
+
+## Hierarchical Rule Evaluation
+
+NOCTRA STUDIO evaluates tool execution permissions in order of specificity:
+
+1. **Agent-level rule**
+2. **Project-level rule**
+3. **Global default rule**
+
+## Four Policy States
+
+- **Ask every time**: Pauses execution with an interactive modal displaying exact JSON tool arguments and affected file paths.
+- **Allow for this session**: Grants temporary approval cleared when the session ends.
+- **Always allow**: Persists permission for trusted low-risk tools.
+- **Deny**: Blocks the tool call deterministically.
