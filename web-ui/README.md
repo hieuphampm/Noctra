@@ -39,10 +39,7 @@ Copy `.env.example` to `.env.local` and configure values as needed:
 cp .env.example .env.local
 ```
 
-See [`.env.example`](.env.example) for supported keys:
-
-- `B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_BUCKET_NAME` — Server-side Backblaze B2 credentials used by `/api/download` to issue temporary signed redirects for the private `Noctra` bucket.
-- `NEXT_PUBLIC_GITHUB_URL` and other `NEXT_PUBLIC_*` keys — Public site and community links.
+See [`.env.example`](.env.example) for supported `NEXT_PUBLIC_*` keys.
 
 ---
 

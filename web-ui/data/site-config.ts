@@ -22,18 +22,24 @@ export const siteConfig = {
   },
   url: cleanEnv(process.env.NEXT_PUBLIC_SITE_URL) ?? "https://noctra.ai",
   links: {
-    github: cleanEnv(process.env.NEXT_PUBLIC_GITHUB_URL),
+    github:
+      cleanEnv(process.env.NEXT_PUBLIC_GITHUB_URL) ??
+      "https://github.com/hieuphampm/Noctra",
     discord: cleanEnv(process.env.NEXT_PUBLIC_DISCORD_URL),
     community: cleanEnv(process.env.NEXT_PUBLIC_COMMUNITY_URL),
     email: cleanEnv(process.env.NEXT_PUBLIC_CONTACT_EMAIL),
-    issues: cleanEnv(process.env.NEXT_PUBLIC_ISSUES_URL),
+    issues:
+      cleanEnv(process.env.NEXT_PUBLIC_ISSUES_URL) ??
+      "https://github.com/hieuphampm/Noctra/issues",
     featureRequests: cleanEnv(process.env.NEXT_PUBLIC_FEATURE_REQUESTS_URL),
   },
   communityLinks: [
     {
       id: "github",
       label: "GitHub Repository",
-      href: cleanEnv(process.env.NEXT_PUBLIC_GITHUB_URL),
+      href:
+        cleanEnv(process.env.NEXT_PUBLIC_GITHUB_URL) ??
+        "https://github.com/hieuphampm/Noctra",
       placeholderNote: "Set NEXT_PUBLIC_GITHUB_URL to publish repository link",
     },
     {
@@ -59,7 +65,9 @@ export const siteConfig = {
     {
       id: "issues",
       label: "Issue Reporting",
-      href: cleanEnv(process.env.NEXT_PUBLIC_ISSUES_URL),
+      href:
+        cleanEnv(process.env.NEXT_PUBLIC_ISSUES_URL) ??
+        "https://github.com/hieuphampm/Noctra/issues",
       placeholderNote: "Set NEXT_PUBLIC_ISSUES_URL to publish issue tracker",
     },
     {

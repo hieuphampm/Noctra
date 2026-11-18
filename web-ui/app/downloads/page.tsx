@@ -28,32 +28,50 @@ export default function DownloadsPage() {
             description="All release metadata is loaded from centralized manifests. Platforms without an active public build clearly display a Coming Soon or Unavailable state."
           />
 
-          <div className="mt-8 flex items-start gap-3 rounded-2xl border border-[#67DDF2]/25 bg-[#10131D]/90 p-4 text-sm text-[#969BAD]">
-            <ShieldCheck
-              className="mt-0.5 h-5 w-5 shrink-0 text-[#67DDF2]"
-              aria-hidden="true"
-            />
-            <p>
-              {totalPublished > 0 ? (
-                <>
-                  <span className="font-semibold text-[#F5F5FA]">
-                    {totalPublished} release artifact
-                    {totalPublished > 1 ? "s" : ""} available.
-                  </span>{" "}
-                  Downloads are served from private Backblaze B2 object storage
-                  using short-lived signed redirects via{" "}
-                  <code className="text-[#F5F5FA]">/api/download</code>. Always
-                  verify the listed SHA-256 checksum after downloading.
-                </>
-              ) : (
-                <>
-                  No public binary releases have been published yet. Configure
-                  release metadata in{" "}
-                  <code className="text-[#F5F5FA]">data/releases/</code> or
-                  build directly from source below.
-                </>
-              )}
-            </p>
+          <div className="mt-8 flex flex-col justify-between gap-4 rounded-2xl border border-[#67DDF2]/25 bg-[#10131D]/90 p-5 sm:flex-row sm:items-center">
+            <div className="flex items-start gap-3 text-sm text-[#969BAD]">
+              <ShieldCheck
+                className="mt-0.5 h-5 w-5 shrink-0 text-[#67DDF2]"
+                aria-hidden="true"
+              />
+              <p>
+                {totalPublished > 0 ? (
+                  <>
+                    <span className="font-semibold text-[#F5F5FA]">
+                      {totalPublished} release artifact
+                      {totalPublished > 1 ? "s" : ""} available.
+                    </span>{" "}
+                    Direct binary packages are distributed via{" "}
+                    <a
+                      href="https://github.com/hieuphampm/Noctra/releases"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#67DDF2] underline underline-offset-4 hover:text-[#8AE7F7]"
+                    >
+                      GitHub Releases
+                    </a>
+                    . Always verify the listed SHA-256 checksum after
+                    downloading.
+                  </>
+                ) : (
+                  <>
+                    No public binary releases have been published yet. Configure
+                    release metadata in{" "}
+                    <code className="text-[#F5F5FA]">data/releases/</code> or
+                    build directly from source below.
+                  </>
+                )}
+              </p>
+            </div>
+
+            <a
+              href="https://github.com/hieuphampm/Noctra/releases"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 rounded-xl border border-white/[0.12] bg-[#171B28] px-4 py-2 text-xs font-semibold text-[#F5F5FA] transition-colors hover:border-[#67DDF2]/40 hover:bg-[#1E2334]"
+            >
+              View All on GitHub Releases →
+            </a>
           </div>
         </div>
       </section>
