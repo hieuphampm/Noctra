@@ -11,15 +11,15 @@
       "published": true,
       "status": "published",
       "statusLabel": "Pre-Release",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "architecture": "x64",
-      "fileSize": "9.38 MB",
+      "fileSize": "10.74 MB",
       "releaseDate": "2026-11-19",
       "minRequirements": "Windows 10 / 11 (64-bit) with WebView2 Runtime",
       "changelogHref": "/changelog",
-      "sha256": "D02196A956384C18A6AA984D1B2E8777B7097929E64D121FEDFF98642F32CE02",
+      "sha256": "44EB4CA984C5DD30DFAE109CC14D971408AF042ED081D6115D6E1F23DE4BEF7D",
       "signatureInfo": "Unsigned build — verify SHA-256 checksum before running",
-      "downloadUrl": "https://github.com/hieuphampm/Noctra/releases/download/v0.1.1-pre/NOCTRA.STUDIO_0.1.1_x64-setup.exe"
+      "downloadUrl": "https://github.com/hieuphampm/Noctra/releases/download/v0.1.2-pre/NOCTRA.STUDIO_0.1.2_x64-setup.exe"
     },
     {
       "id": "windows-msi",
@@ -29,15 +29,15 @@
       "published": true,
       "status": "published",
       "statusLabel": "Pre-Release",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "architecture": "x64",
-      "fileSize": "13.24 MB",
+      "fileSize": "15.46 MB",
       "releaseDate": "2026-11-19",
       "minRequirements": "Windows 10 / 11 (64-bit) with WebView2 Runtime",
       "changelogHref": "/changelog",
-      "sha256": "B5FFF480747475EB488B28BD2CDE110B57D50554519A8F9FA69A2078A673EF4B",
+      "sha256": "6D2A45AFEA888630655EFB79C7014A7B18F9D3AEB408F228590852E5F9454D5F",
       "signatureInfo": "Unsigned build — verify SHA-256 checksum before running",
-      "downloadUrl": "https://github.com/hieuphampm/Noctra/releases/download/v0.1.1-pre/NOCTRA.STUDIO_0.1.1_x64_en-US.msi"
+      "downloadUrl": "https://github.com/hieuphampm/Noctra/releases/download/v0.1.2-pre/NOCTRA.STUDIO_0.1.2_x64_en-US.msi"
     },
     {
       "id": "macos-installer",

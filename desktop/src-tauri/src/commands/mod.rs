@@ -20,6 +20,9 @@ use crate::skills::{
     install_github_skill, parse_skill_md, read_skill_file, write_skill_file, GitHubSkillPreview,
     ParsedSkillMd,
 };
+use crate::ssh::{
+    ssh_passphrase_key, ssh_password_key, ssh_private_key_key, validate_ssh_target, SshManager,
+};
 use crate::storage::models::*;
 use crate::storage::Database;
 use crate::workflows::{validate_workflow_graph, WorkflowEngine};
@@ -36,6 +39,7 @@ pub struct AppState {
     pub creds: Arc<CredentialStore>,
     pub redactor: Arc<SecretRedactor>,
     pub mcp: Arc<McpHubManager>,
+    pub ssh: Arc<SshManager>,
     pub permissions: Arc<PermissionManager>,
     pub runtime: Arc<AgentRuntime>,
     pub workflows: Arc<WorkflowEngine>,
@@ -200,6 +204,7 @@ pub fn create_conversation(
     model: Option<String>,
     agent_id: Option<String>,
     project_id: Option<String>,
+    ssh_server_id: Option<String>,
 ) -> AppResult<Conversation> {
     let now = Utc::now().to_rfc3339();
     let settings = state.db.get_settings().unwrap_or_default();
@@ -215,6 +220,7 @@ pub fn create_conversation(
         active_model: model.filter(|s| !s.trim().is_empty()),
         active_agent_id: agent_id.filter(|s| !s.trim().is_empty()),
         project_id: project_id.filter(|s| !s.trim().is_empty()),
+        ssh_server_id: ssh_server_id.filter(|s| !s.trim().is_empty()),
         system_prompt_override: None,
         created_at: now.clone(),
         updated_at: now,
@@ -234,6 +240,7 @@ pub fn update_conversation(
     updated.active_model = updated.active_model.filter(|s| !s.trim().is_empty());
     updated.active_agent_id = updated.active_agent_id.filter(|s| !s.trim().is_empty());
     updated.project_id = updated.project_id.filter(|s| !s.trim().is_empty());
+    updated.ssh_server_id = updated.ssh_server_id.filter(|s| !s.trim().is_empty());
     updated.updated_at = Utc::now().to_rfc3339();
     state.db.upsert_conversation(&updated)?;
     Ok(updated)
@@ -1174,6 +1181,208 @@ pub fn resolve_approval_request(
     )
 }
 
+// ---- SSH SERVERS ----
+#[tauri::command]
+pub async fn list_ssh_servers(state: State<'_, AppState>) -> AppResult<Vec<SshServer>> {
+    state.ssh.list_servers_with_status().await
+}
+
+#[tauri::command]
+pub async fn save_ssh_server(
+    state: State<'_, AppState>,
+    input: SshServerInput,
+) -> AppResult<SshServer> {
+    let port = if input.port == 0 { 22 } else { input.port };
+    validate_ssh_target(&input.host, port, &input.username)?;
+
+    let name = if input.name.trim().is_empty() {
+        format!("{}@{}", input.username.trim(), input.host.trim())
+    } else {
+        input.name.trim().to_string()
+    };
+
+    let id = input
+        .id
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    let existing = state.db.get_ssh_server(&id)?;
+    let now = Utc::now().to_rfc3339();
+
+    if input.clear_password.unwrap_or(false) {
+        let _ = state.creds.delete_secret(&ssh_password_key(&id));
+        state.ssh.clear_session_password(&id).await;
+    } else if let Some(pw) = input.password.as_ref() {
+        if !pw.is_empty() {
+            if input.save_password.unwrap_or(true) {
+                state.creds.set_secret(&ssh_password_key(&id), pw)?;
+                state.ssh.clear_session_password(&id).await;
+            } else {
+                state.ssh.set_session_password(&id, pw.clone()).await;
+            }
+        }
+    }
+
+    if input.clear_private_key.unwrap_or(false) {
+        let _ = state.creds.delete_secret(&ssh_private_key_key(&id));
+        let _ = state.creds.delete_secret(&ssh_passphrase_key(&id));
+    } else {
+        if let Some(pem) = input.private_key_pem.as_ref() {
+            if !pem.trim().is_empty() {
+                state
+                    .creds
+                    .set_secret(&ssh_private_key_key(&id), pem.trim())?;
+            }
+        }
+        if let Some(pp) = input.passphrase.as_ref() {
+            if !pp.is_empty() {
+                state.creds.set_secret(&ssh_passphrase_key(&id), pp)?;
+            }
+        }
+    }
+
+    let auth_type = if input.auth_type == "private_key" {
+        "private_key".to_string()
+    } else {
+        "password".to_string()
+    };
+
+    let host_trimmed = input.host.trim().to_string();
+    let keep_fingerprint = existing
+        .as_ref()
+        .filter(|e| e.host == host_trimmed && e.port == port)
+        .and_then(|e| e.host_fingerprint.clone());
+
+    let has_password = state.ssh.has_any_password(&id).await;
+    let private_key_path = input
+        .private_key_path
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    let has_private_key = state.creds.has_secret(&ssh_private_key_key(&id))
+        || private_key_path.is_some();
+
+    let server = SshServer {
+        id: id.clone(),
+        name,
+        host: host_trimmed,
+        port,
+        username: input.username.trim().to_string(),
+        auth_type,
+        private_key_path,
+        default_working_dir: input.default_working_dir.trim().to_string(),
+        notes: input.notes,
+        host_fingerprint: keep_fingerprint,
+        has_password,
+        has_private_key,
+        status: "disconnected".into(),
+        last_error: None,
+        last_connected_at: existing.as_ref().and_then(|e| e.last_connected_at.clone()),
+        created_at: existing
+            .as_ref()
+            .map(|e| e.created_at.clone())
+            .unwrap_or_else(|| now.clone()),
+        updated_at: now,
+    };
+
+    state.db.upsert_ssh_server(&server)?;
+    state.db.log_event(
+        "ssh",
+        "info",
+        &format!(
+            "Saved SSH server '{}' ({}@{}:{})",
+            server.name, server.username, server.host, server.port
+        ),
+        None,
+    );
+    Ok(state.ssh.enrich_server(server).await)
+}
+
+#[tauri::command]
+pub async fn delete_ssh_server(state: State<'_, AppState>, id: String) -> AppResult<()> {
+    let _ = state.ssh.disconnect(&id).await;
+    state.ssh.clear_session_password(&id).await;
+    let _ = state.creds.delete_secret(&ssh_password_key(&id));
+    let _ = state.creds.delete_secret(&ssh_private_key_key(&id));
+    let _ = state.creds.delete_secret(&ssh_passphrase_key(&id));
+    state.db.delete_ssh_server(&id)
+}
+
+#[tauri::command]
+pub async fn connect_ssh_server(
+    state: State<'_, AppState>,
+    id: String,
+    password: Option<String>,
+    save_password: Option<bool>,
+    trust_host_key: Option<bool>,
+) -> AppResult<SshServer> {
+    state
+        .ssh
+        .connect(
+            &id,
+            password,
+            save_password.unwrap_or(false),
+            trust_host_key.unwrap_or(false),
+        )
+        .await
+}
+
+#[tauri::command]
+pub async fn disconnect_ssh_server(state: State<'_, AppState>, id: String) -> AppResult<()> {
+    state.ssh.disconnect(&id).await
+}
+
+#[tauri::command]
+pub async fn test_ssh_connection(
+    state: State<'_, AppState>,
+    id: String,
+    password: Option<String>,
+    trust_host_key: Option<bool>,
+) -> AppResult<SshTestResult> {
+    state
+        .ssh
+        .test_connection(&id, password, trust_host_key.unwrap_or(false))
+        .await
+}
+
+#[tauri::command]
+pub async fn exec_ssh_command(
+    state: State<'_, AppState>,
+    id: String,
+    command: String,
+    working_dir: Option<String>,
+    timeout_secs: Option<u64>,
+) -> AppResult<SshExecResult> {
+    let res = state
+        .ssh
+        .exec_command(
+            &id,
+            &command,
+            working_dir.as_deref(),
+            timeout_secs,
+            CancellationToken::new(),
+        )
+        .await;
+    state.db.log_event(
+        "ssh",
+        if res.is_ok() { "info" } else { "warn" },
+        &format!("Manual SSH command on '{}': {}", id, command),
+        res.as_ref().err().map(|e| e.to_string()).as_deref(),
+    );
+    res
+}
+
+#[tauri::command]
+pub async fn reset_ssh_host_fingerprint(
+    state: State<'_, AppState>,
+    id: String,
+) -> AppResult<SshServer> {
+    state.db.update_ssh_server_fingerprint(&id, None)?;
+    let srv = state
+        .db
+        .get_ssh_server(&id)?
+        .ok_or_else(|| AppError::NotFound(format!("SSH server '{id}' not found")))?;
+    Ok(state.ssh.enrich_server(srv).await)
+}
+
 // ---- OBSERVABILITY, BACKUP & PRIVACY ----
 #[tauri::command]
 pub fn list_audit_logs(state: State<'_, AppState>, limit: Option<usize>) -> AppResult<Vec<AuditLogEntry>> {
@@ -1206,6 +1415,12 @@ pub async fn wipe_all_local_data(state: State<'_, AppState>) -> AppResult<()> {
             let _ = state.creds.delete_secret(&format!("mcp:{}:env:{k}", s.id));
         }
         let _ = state.creds.delete_secret(&format!("mcp:{}:auth", s.id));
+    }
+    state.ssh.disconnect_all().await;
+    for s in state.db.list_ssh_servers()? {
+        let _ = state.creds.delete_secret(&ssh_password_key(&s.id));
+        let _ = state.creds.delete_secret(&ssh_private_key_key(&s.id));
+        let _ = state.creds.delete_secret(&ssh_passphrase_key(&s.id));
     }
     state.permissions.clear_session_allows();
     state.redactor.clear();

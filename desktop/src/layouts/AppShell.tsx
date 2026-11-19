@@ -17,6 +17,7 @@ import {
   PanelRightOpen,
   Plug,
   Search,
+  Server,
   Settings,
   Shield,
   Sparkles,
@@ -35,6 +36,7 @@ import { ChatView } from "@/features/chat/ChatView";
 import { ProvidersView } from "@/features/providers/ProvidersView";
 import { AgentsView } from "@/features/agents/AgentsView";
 import { McpHubView } from "@/features/mcp/McpHubView";
+import { SshServersView } from "@/features/ssh/SshServersView";
 import { SkillsCenterView } from "@/features/skills/SkillsCenterView";
 import { WorkflowBuilderView } from "@/features/workflows/WorkflowBuilderView";
 import { ProjectsFilesView } from "@/features/projects/ProjectsFilesView";
@@ -85,6 +87,11 @@ export function AppShell() {
   const { data: mcpServers = [] } = useQuery({
     queryKey: ["mcp-servers"],
     queryFn: api.listMcpServers,
+    enabled: isTauriRuntime(),
+  });
+  const { data: sshServers = [] } = useQuery({
+    queryKey: ["ssh-servers"],
+    queryFn: api.listSshServers,
     enabled: isTauriRuntime(),
   });
   const { data: skills = [] } = useQuery({
@@ -266,6 +273,7 @@ export function AppShell() {
     providers.find((p) => p.id === activeConv?.activeProviderId) ?? providers[0];
   const activeAgent = agents.find((a) => a.id === activeConv?.activeAgentId);
   const connectedMcp = mcpServers.filter((s) => s.status === "connected");
+  const connectedSsh = sshServers.filter((s) => s.status === "connected");
   const enabledSkills = skills.filter((s) => s.enabled);
 
   const navItems: Array<{
@@ -276,6 +284,7 @@ export function AppShell() {
     { id: "chat", label: t("nav.chat"), icon: MessageSquare },
     { id: "agents", label: t("nav.agents"), icon: Bot },
     { id: "mcp", label: t("nav.mcp"), icon: Plug },
+    { id: "ssh", label: t("nav.ssh"), icon: Server },
     { id: "skills", label: t("nav.skills"), icon: Sparkles },
     { id: "workflows", label: t("nav.workflows"), icon: GitBranch },
     { id: "projects", label: t("nav.projects"), icon: FolderKanban },
@@ -465,6 +474,7 @@ export function AppShell() {
             {activeSection === "providers" && <ProvidersView />}
             {activeSection === "agents" && <AgentsView />}
             {activeSection === "mcp" && <McpHubView />}
+            {activeSection === "ssh" && <SshServersView />}
             {activeSection === "skills" && <SkillsCenterView />}
             {activeSection === "workflows" && <WorkflowBuilderView />}
             {activeSection === "projects" && <ProjectsFilesView initialTab="projects" />}
@@ -554,6 +564,33 @@ export function AppShell() {
                   </div>
                 ))}
                 {connectedMcp.length === 0 && (
+                  <div className="text-[11px] text-[#9399AA]">
+                    {t("inspector.noLiveConnections")}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-[#252B3A] bg-[#121622] p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] uppercase tracking-wider text-[#9399AA]">
+                    {t("ssh.inspectorTitle")}
+                  </span>
+                  <Badge variant={connectedSsh.length > 0 ? "success" : "default"}>
+                    {connectedSsh.length}/{sshServers.length}
+                  </Badge>
+                </div>
+                {connectedSsh.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex items-center justify-between text-[11px] text-[#F3F4F8]"
+                  >
+                    <span className="truncate font-mono">
+                      {s.username}@{s.host}
+                    </span>
+                    <span className="text-emerald-400">●</span>
+                  </div>
+                ))}
+                {connectedSsh.length === 0 && (
                   <div className="text-[11px] text-[#9399AA]">
                     {t("inspector.noLiveConnections")}
                   </div>
@@ -688,6 +725,20 @@ export function AppShell() {
             <Plug className="h-3 w-3 text-[#A78BFA]" />
             <span>
               MCP: {connectedMcp.length} {t("status.mcpConnected")}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveSection("ssh")}
+            className={`flex shrink-0 items-center gap-1 whitespace-nowrap cursor-pointer ${
+              connectedSsh.length > 0
+                ? "text-emerald-400 hover:text-emerald-300"
+                : "hover:text-[#F3F4F8]"
+            }`}
+          >
+            <Server className="h-3 w-3" />
+            <span>
+              SSH: {connectedSsh.length}
             </span>
           </button>
 

@@ -34,6 +34,10 @@ import type {
   ProjectWorkspace,
   ProviderTestResult,
   SkillRecord,
+  SshExecResult,
+  SshServer,
+  SshServerInput,
+  SshTestResult,
   WorkflowDefinition,
   WorkflowRunRecord,
 } from "@/types/noctra";
@@ -76,6 +80,7 @@ export const api = {
     model?: string | null;
     agentId?: string | null;
     projectId?: string | null;
+    sshServerId?: string | null;
   }) => callBackend<Conversation>("create_conversation", params),
   updateConversation: (conversation: Conversation) =>
     callBackend<Conversation>("update_conversation", { conversation }),
@@ -231,6 +236,32 @@ export const api = {
     category: string;
     resource: string;
   }) => callBackend<void>("resolve_approval_request", params),
+
+  // SSH Servers
+  listSshServers: () => callBackend<SshServer[]>("list_ssh_servers"),
+  saveSshServer: (input: SshServerInput) =>
+    callBackend<SshServer>("save_ssh_server", { input }),
+  deleteSshServer: (id: string) => callBackend<void>("delete_ssh_server", { id }),
+  connectSshServer: (params: {
+    id: string;
+    password?: string | null;
+    savePassword?: boolean;
+    trustHostKey?: boolean;
+  }) => callBackend<SshServer>("connect_ssh_server", params),
+  disconnectSshServer: (id: string) => callBackend<void>("disconnect_ssh_server", { id }),
+  testSshConnection: (params: {
+    id: string;
+    password?: string | null;
+    trustHostKey?: boolean;
+  }) => callBackend<SshTestResult>("test_ssh_connection", params),
+  execSshCommand: (params: {
+    id: string;
+    command: string;
+    workingDir?: string | null;
+    timeoutSecs?: number;
+  }) => callBackend<SshExecResult>("exec_ssh_command", params),
+  resetSshHostFingerprint: (id: string) =>
+    callBackend<SshServer>("reset_ssh_host_fingerprint", { id }),
 
   // Logs & Backup
   listAuditLogs: (limit?: number) => callBackend<AuditLogEntry[]>("list_audit_logs", { limit }),

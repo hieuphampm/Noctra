@@ -9,6 +9,7 @@ pub mod permissions;
 pub mod project_fs;
 pub mod security;
 pub mod skills;
+pub mod ssh;
 pub mod storage;
 pub mod workflows;
 
@@ -18,6 +19,7 @@ use crate::mcp::McpHubManager;
 use crate::permissions::PermissionManager;
 use crate::security::credentials::CredentialStore;
 use crate::security::redaction::SecretRedactor;
+use crate::ssh::SshManager;
 use crate::storage::Database;
 use crate::workflows::WorkflowEngine;
 use std::sync::Arc;
@@ -40,12 +42,14 @@ pub fn run() {
             );
             let creds = Arc::new(CredentialStore::new_os(redactor.clone()));
             let mcp = Arc::new(McpHubManager::new(db.clone(), creds.clone(), redactor.clone()));
+            let ssh = Arc::new(SshManager::new(db.clone(), creds.clone(), redactor.clone()));
             let permissions = Arc::new(PermissionManager::new(db.clone()));
             let runtime = Arc::new(AgentRuntime::new(
                 db.clone(),
                 creds.clone(),
                 redactor.clone(),
                 mcp.clone(),
+                ssh.clone(),
                 permissions.clone(),
             ));
             let workflows = Arc::new(WorkflowEngine::new(runtime.clone()));
@@ -69,6 +73,7 @@ pub fn run() {
                 creds,
                 redactor,
                 mcp,
+                ssh,
                 permissions,
                 runtime,
                 workflows,
@@ -156,6 +161,14 @@ pub fn run() {
             commands::save_permission_rule,
             commands::delete_permission_rule,
             commands::resolve_approval_request,
+            commands::list_ssh_servers,
+            commands::save_ssh_server,
+            commands::delete_ssh_server,
+            commands::connect_ssh_server,
+            commands::disconnect_ssh_server,
+            commands::test_ssh_connection,
+            commands::exec_ssh_command,
+            commands::reset_ssh_host_fingerprint,
             commands::list_audit_logs,
             commands::clear_audit_logs,
             commands::export_backup_json,

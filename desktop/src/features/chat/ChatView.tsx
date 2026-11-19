@@ -15,8 +15,10 @@ import {
   Paperclip,
   RotateCcw,
   Send,
+  Server,
   Sparkles,
   Square,
+  Terminal,
   Trash2,
   Wrench,
   X,
@@ -37,6 +39,7 @@ import { Badge } from "@/components/ui/badge";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { ExecutionModeToggle } from "@/components/workspace/ExecutionModeToggle";
 import { InternetModeToggle } from "@/components/workspace/InternetModeToggle";
+import { SshQuickConnectModal } from "@/components/workspace/SshQuickConnectModal";
 import { ProjectTreeSidebar } from "@/components/workspace/ProjectTreeSidebar";
 import { CodeEditorPane } from "@/components/workspace/CodeEditorPane";
 import { AiChangedFilesPopup } from "@/components/workspace/AiChangedFilesPopup";
@@ -89,12 +92,19 @@ export function ChatView() {
     queryFn: api.listProjects,
     enabled: isTauriRuntime(),
   });
+  const { data: sshServers = [] } = useQuery({
+    queryKey: ["ssh-servers"],
+    queryFn: api.listSshServers,
+    enabled: isTauriRuntime(),
+  });
 
   const activeConv: Conversation | undefined = conversations.find(
     (c) => c.id === activeConvId
   );
   const resolvedProjectId = activeConv?.projectId ?? activeProjectId ?? null;
   const activeProject = projects.find((p) => p.id === resolvedProjectId) ?? null;
+  const activeSshServer =
+    sshServers.find((s) => s.id === activeConv?.sshServerId) ?? null;
 
   // Keep global activeProjectId in sync with the active conversation's project
   React.useEffect(() => {
@@ -120,6 +130,8 @@ export function ChatView() {
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
   const [sending, setSending] = React.useState(false);
   const [importingFolder, setImportingFolder] = React.useState(false);
+  const [sshModalOpen, setSshModalOpen] = React.useState(false);
+  const [sshModalTargetId, setSshModalTargetId] = React.useState<string | null>(null);
   const [splitRatio, setSplitRatio] = React.useState(52); // % width of IDE left pane
   const splitContainerRef = React.useRef<HTMLDivElement>(null);
   const composerRef = React.useRef<HTMLTextAreaElement>(null);
@@ -148,16 +160,22 @@ export function ChatView() {
       executionMode: ExecutionMode;
       internetMode: boolean;
       projectId: string | null;
+      sshServerId: string | null;
       agentId: string | null;
     }>
   ): Promise<Conversation> => {
     if (activeConv) return activeConv;
     const targetProject = overrides?.projectId !== undefined ? overrides.projectId : resolvedProjectId;
-    const targetMode = overrides?.mode ?? (targetProject ? "agent" : "direct");
+    const targetSsh = overrides?.sshServerId !== undefined ? overrides.sshServerId : null;
+    const targetMode = overrides?.mode ?? (targetProject || targetSsh ? "agent" : "direct");
     const defaultAgent =
       overrides?.agentId ??
       (targetMode === "agent"
-        ? agents.find((a) => a.id === "tpl-coding")?.id ?? agents[0]?.id ?? null
+        ? (targetSsh
+            ? agents.find((a) => a.id === "tpl-ssh-ops")?.id
+            : agents.find((a) => a.id === "tpl-coding")?.id) ??
+          agents[0]?.id ??
+          null
         : null);
     const created = await api.createConversation({
       title: targetProject && activeProject ? `Project: ${activeProject.name}` : "New Conversation",
@@ -168,6 +186,7 @@ export function ChatView() {
       model: providers[0]?.modelId ?? null,
       agentId: defaultAgent,
       projectId: targetProject,
+      sshServerId: targetSsh,
     });
     await qc.invalidateQueries({ queryKey: ["conversations"] });
     setActiveConvId(created.id);
@@ -296,6 +315,7 @@ export function ChatView() {
         executionMode: patch.executionMode,
         internetMode: patch.internetMode,
         projectId: patch.projectId,
+        sshServerId: patch.sshServerId,
         agentId: patch.activeAgentId,
       });
       if (patch.projectId !== undefined) {
@@ -521,6 +541,48 @@ export function ChatView() {
             enabled={effectiveInternetMode}
             onChange={handleInternetModeChange}
           />
+
+          {/* SSH Server Selector & Quick Connect */}
+          <div className="flex items-center gap-1">
+            {sshServers.length > 0 && (
+              <Select
+                value={activeConv?.sshServerId ?? ""}
+                onChange={(val) => {
+                  const sid = val || null;
+                  updateConvField({ sshServerId: sid });
+                  if (sid) {
+                    const target = sshServers.find((s) => s.id === sid);
+                    if (target && target.status !== "connected" && !target.hasPassword && target.authType === "password") {
+                      setSshModalTargetId(sid);
+                      setSshModalOpen(true);
+                    }
+                  }
+                }}
+              >
+                <option value="">{t("ssh.noSshScope")}</option>
+                {sshServers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.status === "connected" ? "● " : ""}
+                    {s.name} ({s.username}@{s.host})
+                  </option>
+                ))}
+              </Select>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              variant={activeSshServer?.status === "connected" ? "cyan" : "secondary"}
+              onClick={() => {
+                setSshModalTargetId(activeSshServer?.id ?? null);
+                setSshModalOpen(true);
+              }}
+              title={t("ssh.quickConnectTitle")}
+              className="h-7 px-2.5 text-[11px]"
+            >
+              <Server className="h-3.5 w-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">{t("ssh.quickConnect")}</span>
+            </Button>
+          </div>
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -577,6 +639,60 @@ export function ChatView() {
           >
             {t("internet.bannerConfigure")}
           </Button>
+        </div>
+      )}
+
+      {/* Active SSH Server status bar */}
+      {activeSshServer && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-[11px] text-[#F3F4F8]">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <Terminal className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+            <span className="font-medium text-emerald-300">{t("ssh.bannerAttached")}:</span>
+            <span className="font-mono text-[#67DDF2] truncate">
+              {activeSshServer.username}@{activeSshServer.host}:{activeSshServer.port}
+            </span>
+            <Badge
+              variant={
+                activeSshServer.status === "connected"
+                  ? "success"
+                  : activeSshServer.status === "error"
+                  ? "danger"
+                  : "warning"
+              }
+            >
+              {activeSshServer.status === "connected"
+                ? t("ssh.connected")
+                : activeSshServer.status === "error"
+                ? t("ssh.error")
+                : t("ssh.disconnected")}
+            </Badge>
+            <span className="hidden lg:inline text-[#9399AA]">{t("ssh.bannerAutoHint")}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {activeSshServer.status !== "connected" && (
+              <Button
+                type="button"
+                size="sm"
+                variant="cyan"
+                className="h-6 px-2.5 text-[10px]"
+                onClick={() => {
+                  setSshModalTargetId(activeSshServer.id);
+                  setSshModalOpen(true);
+                }}
+              >
+                {t("ssh.enterPasswordConnect")}
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => updateConvField({ sshServerId: null })}
+            >
+              {t("ssh.detach")}
+            </Button>
+          </div>
         </div>
       )}
 
@@ -939,6 +1055,31 @@ export function ChatView() {
           </div>
         </div>
       </div>
+
+      <SshQuickConnectModal
+        open={sshModalOpen}
+        existingServer={sshServers.find((s) => s.id === sshModalTargetId) ?? null}
+        onClose={() => setSshModalOpen(false)}
+        onConnected={async (srv, enableTurbo) => {
+          const nextExecMode: ExecutionMode = enableTurbo ? "turbo" : effectiveExecMode;
+          if (enableTurbo) {
+            setPreferredExecutionMode("turbo");
+          }
+          const sshAgentId =
+            activeConv?.activeAgentId ??
+            agents.find((a) => a.id === "tpl-ssh-ops")?.id ??
+            agents[0]?.id ??
+            null;
+          await updateConvField({
+            sshServerId: srv.id,
+            executionMode: nextExecMode,
+            ...(activeConv?.mode !== "agent" && sshAgentId
+              ? { mode: "agent", activeAgentId: sshAgentId }
+              : {}),
+          });
+          await qc.invalidateQueries({ queryKey: ["ssh-servers"] });
+        }}
+      />
     </div>
   );
 }

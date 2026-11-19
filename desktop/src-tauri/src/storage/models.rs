@@ -286,6 +286,8 @@ pub struct Conversation {
     pub active_model: Option<String>,
     pub active_agent_id: Option<String>,
     pub project_id: Option<String>,
+    #[serde(default)]
+    pub ssh_server_id: Option<String>,
     pub system_prompt_override: Option<String>,
     pub created_at: String,
     pub updated_at: String,
@@ -644,9 +646,75 @@ pub struct MarketplaceSource {
 #[serde(rename_all = "camelCase")]
 pub struct AuditLogEntry {
     pub id: String,
-    pub source: String, // "ai" | "mcp" | "agent" | "workflow" | "skill" | "security"
+    pub source: String, // "ai" | "mcp" | "agent" | "workflow" | "skill" | "security" | "ssh"
     pub level: String,  // "info" | "warn" | "error"
     pub message: String,
     pub detail: Option<String>,
     pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SshServer {
+    pub id: String,
+    pub name: String,
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub auth_type: String, // "password" | "private_key"
+    pub private_key_path: Option<String>,
+    pub default_working_dir: String,
+    pub notes: String,
+    pub host_fingerprint: Option<String>,
+    pub has_password: bool,
+    pub has_private_key: bool,
+    pub status: String, // "disconnected" | "connecting" | "connected" | "error"
+    pub last_error: Option<String>,
+    pub last_connected_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SshServerInput {
+    pub id: Option<String>,
+    pub name: String,
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub auth_type: String, // "password" | "private_key"
+    pub password: Option<String>,
+    pub save_password: Option<bool>,
+    pub clear_password: Option<bool>,
+    pub private_key_path: Option<String>,
+    pub private_key_pem: Option<String>,
+    pub clear_private_key: Option<bool>,
+    pub passphrase: Option<String>,
+    pub default_working_dir: String,
+    pub notes: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SshExecResult {
+    pub server_id: String,
+    pub command: String,
+    pub working_dir: Option<String>,
+    pub exit_code: i32,
+    pub stdout: String,
+    pub stderr: String,
+    pub duration_ms: u64,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SshTestResult {
+    pub ok: bool,
+    pub latency_ms: u64,
+    pub host_fingerprint: Option<String>,
+    pub server_banner: Option<String>,
+    pub remote_whoami: Option<String>,
+    pub message: String,
 }

@@ -254,7 +254,7 @@ impl Database {
     pub fn list_conversations(&self) -> AppResult<Vec<Conversation>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, title, mode, execution_mode, internet_mode, active_provider_id, active_model, active_agent_id, project_id, system_prompt_override, created_at, updated_at FROM conversations ORDER BY updated_at DESC",
+            "SELECT id, title, mode, execution_mode, internet_mode, active_provider_id, active_model, active_agent_id, project_id, ssh_server_id, system_prompt_override, created_at, updated_at FROM conversations ORDER BY updated_at DESC",
         )?;
         let rows = stmt
             .query_map([], |r| {
@@ -268,9 +268,10 @@ impl Database {
                     active_model: r.get(6)?,
                     active_agent_id: r.get(7)?,
                     project_id: r.get(8)?,
-                    system_prompt_override: r.get(9)?,
-                    created_at: r.get(10)?,
-                    updated_at: r.get(11)?,
+                    ssh_server_id: r.get(9)?,
+                    system_prompt_override: r.get(10)?,
+                    created_at: r.get(11)?,
+                    updated_at: r.get(12)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -287,8 +288,8 @@ impl Database {
         conn.execute(
             r#"INSERT INTO conversations (
                 id, title, mode, execution_mode, internet_mode, active_provider_id, active_model, active_agent_id,
-                project_id, system_prompt_override, created_at, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                project_id, ssh_server_id, system_prompt_override, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
             ON CONFLICT(id) DO UPDATE SET
                 title = excluded.title,
                 mode = excluded.mode,
@@ -298,6 +299,7 @@ impl Database {
                 active_model = excluded.active_model,
                 active_agent_id = excluded.active_agent_id,
                 project_id = excluded.project_id,
+                ssh_server_id = excluded.ssh_server_id,
                 system_prompt_override = excluded.system_prompt_override,
                 updated_at = excluded.updated_at"#,
             params![
@@ -310,6 +312,7 @@ impl Database {
                 conv.active_model,
                 conv.active_agent_id,
                 conv.project_id,
+                conv.ssh_server_id,
                 conv.system_prompt_override,
                 conv.created_at,
                 conv.updated_at,
@@ -1232,6 +1235,117 @@ impl Database {
         Ok(())
     }
 
+    // ---- SSH SERVERS ----
+    pub fn list_ssh_servers(&self) -> AppResult<Vec<SshServer>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, host, port, username, auth_type, private_key_path, default_working_dir, notes, host_fingerprint, has_password, has_private_key, last_connected_at, created_at, updated_at FROM ssh_servers ORDER BY created_at ASC",
+        )?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok(SshServer {
+                    id: r.get(0)?,
+                    name: r.get(1)?,
+                    host: r.get(2)?,
+                    port: r.get::<_, i64>(3)?.clamp(1, 65535) as u16,
+                    username: r.get(4)?,
+                    auth_type: r.get(5)?,
+                    private_key_path: r.get(6)?,
+                    default_working_dir: r.get(7)?,
+                    notes: r.get(8)?,
+                    host_fingerprint: r.get(9)?,
+                    has_password: r.get::<_, i64>(10)? != 0,
+                    has_private_key: r.get::<_, i64>(11)? != 0,
+                    status: "disconnected".into(),
+                    last_error: None,
+                    last_connected_at: r.get(12)?,
+                    created_at: r.get(13)?,
+                    updated_at: r.get(14)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    pub fn get_ssh_server(&self, id: &str) -> AppResult<Option<SshServer>> {
+        Ok(self.list_ssh_servers()?.into_iter().find(|s| s.id == id))
+    }
+
+    pub fn upsert_ssh_server(&self, srv: &SshServer) -> AppResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            r#"INSERT INTO ssh_servers (
+                id, name, host, port, username, auth_type, private_key_path, default_working_dir,
+                notes, host_fingerprint, has_password, has_private_key, last_connected_at,
+                created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                host = excluded.host,
+                port = excluded.port,
+                username = excluded.username,
+                auth_type = excluded.auth_type,
+                private_key_path = excluded.private_key_path,
+                default_working_dir = excluded.default_working_dir,
+                notes = excluded.notes,
+                host_fingerprint = excluded.host_fingerprint,
+                has_password = excluded.has_password,
+                has_private_key = excluded.has_private_key,
+                last_connected_at = excluded.last_connected_at,
+                updated_at = excluded.updated_at"#,
+            params![
+                srv.id,
+                srv.name,
+                srv.host,
+                srv.port as i64,
+                srv.username,
+                srv.auth_type,
+                srv.private_key_path,
+                srv.default_working_dir,
+                srv.notes,
+                srv.host_fingerprint,
+                if srv.has_password { 1 } else { 0 },
+                if srv.has_private_key { 1 } else { 0 },
+                srv.last_connected_at,
+                srv.created_at,
+                srv.updated_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_ssh_server_fingerprint(
+        &self,
+        id: &str,
+        fingerprint: Option<&str>,
+    ) -> AppResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE ssh_servers SET host_fingerprint = ?1, updated_at = ?2 WHERE id = ?3",
+            params![fingerprint, Utc::now().to_rfc3339(), id],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_ssh_server_last_connected(&self, id: &str, ts: &str) -> AppResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE ssh_servers SET last_connected_at = ?1, updated_at = ?2 WHERE id = ?3",
+            params![ts, ts, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_ssh_server(&self, id: &str) -> AppResult<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute("DELETE FROM ssh_servers WHERE id = ?1", [id])?;
+        conn.execute(
+            "UPDATE conversations SET ssh_server_id = NULL WHERE ssh_server_id = ?1",
+            [id],
+        )?;
+        Ok(())
+    }
+
     // ---- LOCAL BACKUP EXPORT / IMPORT / RESET (NEVER INCLUDES API KEYS OR SECRETS) ----
     pub fn export_portable_backup(&self) -> AppResult<serde_json::Value> {
         let providers: Vec<AiProvider> = self
@@ -1256,6 +1370,17 @@ impl Database {
                 s
             })
             .collect();
+        let ssh_servers: Vec<SshServer> = self
+            .list_ssh_servers()?
+            .into_iter()
+            .map(|mut s| {
+                s.has_password = false;
+                s.has_private_key = false;
+                s.status = "disconnected".into();
+                s.last_error = None;
+                s
+            })
+            .collect();
 
         Ok(serde_json::json!({
             "format": "noctra-studio-backup",
@@ -1267,6 +1392,7 @@ impl Database {
             "conversations": conversations,
             "messages": all_messages,
             "mcpServers": mcp_servers,
+            "sshServers": ssh_servers,
             "skills": self.list_skills()?,
             "agents": self.list_agents()?,
             "projects": self.list_projects()?,
@@ -1313,6 +1439,17 @@ impl Database {
                     s.has_auth_secret = false;
                     s.status = "disconnected".into();
                     self.upsert_mcp_server(&s)?;
+                }
+            }
+        }
+        if let Some(arr) = backup.get("sshServers").and_then(|v| v.as_array()) {
+            for item in arr {
+                if let Ok(mut s) = serde_json::from_value::<SshServer>(item.clone()) {
+                    s.has_password = false;
+                    s.has_private_key = false;
+                    s.status = "disconnected".into();
+                    s.last_error = None;
+                    self.upsert_ssh_server(&s)?;
                 }
             }
         }
@@ -1366,6 +1503,7 @@ impl Database {
             DELETE FROM workflows;
             DELETE FROM permission_rules;
             DELETE FROM audit_logs;
+            DELETE FROM ssh_servers;
             DELETE FROM ai_providers;
             DELETE FROM app_settings;
             "#,
@@ -1454,6 +1592,7 @@ mod tests {
             active_model: Some("gpt-4o-mini".into()),
             active_agent_id: None,
             project_id: None,
+            ssh_server_id: None,
             system_prompt_override: None,
             created_at: now.clone(),
             updated_at: now.clone(),

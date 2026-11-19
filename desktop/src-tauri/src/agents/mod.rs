@@ -15,6 +15,10 @@ use crate::project_fs::{
 use crate::security::credentials::CredentialStore;
 use crate::security::redaction::SecretRedactor;
 use crate::security::sandbox::verify_path_within_roots;
+use crate::ssh::{
+    builtin_ssh_tool_specs, describe_ssh_action, execute_builtin_ssh_tool, ssh_mode_system_prompt,
+    SshManager,
+};
 use crate::storage::models::{
     AgentConfig, AiProvider, ApprovalRequest, ChatAttachment, ChatMessage, McpTool, ToolCallRecord,
 };
@@ -55,6 +59,11 @@ enum ResolvedToolTarget {
         category: String,
         is_active_probe: bool,
     },
+    BuiltinSsh {
+        name: String,
+        category: String,
+        is_mutating: bool,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,6 +91,7 @@ pub struct AgentRuntime {
     pub creds: Arc<CredentialStore>,
     pub redactor: Arc<SecretRedactor>,
     pub mcp: Arc<McpHubManager>,
+    pub ssh: Arc<SshManager>,
     pub permissions: Arc<PermissionManager>,
     active_runs: Mutex<HashMap<String, CancellationToken>>,
 }
@@ -92,6 +102,7 @@ impl AgentRuntime {
         creds: Arc<CredentialStore>,
         redactor: Arc<SecretRedactor>,
         mcp: Arc<McpHubManager>,
+        ssh: Arc<SshManager>,
         permissions: Arc<PermissionManager>,
     ) -> Self {
         Self {
@@ -99,6 +110,7 @@ impl AgentRuntime {
             creds,
             redactor,
             mcp,
+            ssh,
             permissions,
             active_runs: Mutex::new(HashMap::new()),
         }
@@ -271,6 +283,7 @@ impl AgentRuntime {
         agent: Option<&AgentConfig>,
         project_id: Option<&str>,
         internet_enabled: bool,
+        ssh_server_id: Option<&str>,
     ) -> AppResult<(Vec<OpenAiToolDef>, HashMap<String, ResolvedToolTarget>)> {
         let (mut defs, mut targets): (Vec<OpenAiToolDef>, HashMap<String, ResolvedToolTarget>) =
             if let Some(ag) = agent {
@@ -329,6 +342,31 @@ impl AgentRuntime {
                             is_active_probe: spec.is_active_probe,
                         },
                     );
+                }
+            }
+        }
+
+        if let Some(sid) = ssh_server_id {
+            if self.db.get_ssh_server(sid)?.is_some() {
+                for spec in builtin_ssh_tool_specs() {
+                    if !targets.contains_key(&spec.name) {
+                        defs.push(OpenAiToolDef {
+                            kind: "function".into(),
+                            function: OpenAiFunctionDef {
+                                name: spec.name.clone(),
+                                description: spec.description,
+                                parameters: spec.parameters,
+                            },
+                        });
+                        targets.insert(
+                            spec.name.clone(),
+                            ResolvedToolTarget::BuiltinSsh {
+                                name: spec.name,
+                                category: spec.category,
+                                is_mutating: spec.is_mutating,
+                            },
+                        );
+                    }
                 }
             }
         }
@@ -444,6 +482,12 @@ impl AgentRuntime {
                 .unwrap_or_else(|| provider.default_system_prompt.clone())
         };
 
+        let active_ssh_server = if let Some(ref sid) = conv.ssh_server_id {
+            self.db.get_ssh_server(sid)?
+        } else {
+            None
+        };
+
         if internet_enabled {
             let internet_note = internet_mode_system_prompt(&settings.internet);
             if system_prompt.trim().is_empty() {
@@ -453,8 +497,21 @@ impl AgentRuntime {
             }
         }
 
-        let (tool_defs, tool_map) =
-            self.resolve_runtime_tools(agent.as_ref(), conv.project_id.as_deref(), internet_enabled)?;
+        if let Some(ref srv) = active_ssh_server {
+            let ssh_note = ssh_mode_system_prompt(srv);
+            if system_prompt.trim().is_empty() {
+                system_prompt = ssh_note;
+            } else {
+                system_prompt = format!("{system_prompt}\n\n{ssh_note}");
+            }
+        }
+
+        let (tool_defs, tool_map) = self.resolve_runtime_tools(
+            agent.as_ref(),
+            conv.project_id.as_deref(),
+            internet_enabled,
+            active_ssh_server.as_ref().map(|s| s.id.as_str()),
+        )?;
         let is_turbo = conv.execution_mode.eq_ignore_ascii_case("turbo");
 
         let max_steps = agent
@@ -559,7 +616,13 @@ impl AgentRuntime {
             let actor_name: String = agent
                 .as_ref()
                 .map(|a| a.name.clone())
-                .unwrap_or_else(|| "Internet Mode".into());
+                .unwrap_or_else(|| {
+                    if active_ssh_server.is_some() {
+                        "SSH Automation".into()
+                    } else {
+                        "Internet Mode".into()
+                    }
+                });
             let mut recorded_calls = Vec::new();
             let mut tool_result_msgs = Vec::new();
 
@@ -594,64 +657,99 @@ impl AgentRuntime {
                     continue;
                 };
 
-                let (server_label, tool_display_name, resource_key, primary_cat, is_builtin_project, is_builtin_internet, is_mutating) =
-                    match target {
-                        ResolvedToolTarget::Mcp(mcp_tool) => {
-                            record.server_id = Some(mcp_tool.server_id.clone());
-                            let cat = mcp_tool
-                                .required_permissions
-                                .iter()
-                                .find(|p| *p != "mcp_tools")
-                                .cloned()
-                                .unwrap_or_else(|| "mcp_tools".into());
-                            (
-                                mcp_tool.server_name.clone(),
-                                mcp_tool.name.clone(),
-                                format!("{}:{}", mcp_tool.server_name, mcp_tool.name),
-                                cat,
-                                false,
-                                false,
-                                true,
-                            )
-                        }
-                        ResolvedToolTarget::BuiltinProject {
-                            name,
-                            category,
-                            is_mutating,
-                        } => {
-                            record.server_id = Some("builtin:project".into());
-                            (
-                                "Project Workspace".to_string(),
-                                name.clone(),
-                                format!("project:{name}"),
-                                category.clone(),
-                                true,
-                                false,
-                                *is_mutating,
-                            )
-                        }
-                        ResolvedToolTarget::BuiltinInternet {
-                            name,
-                            category,
-                            is_active_probe,
-                        } => {
-                            record.server_id = Some("builtin:internet".into());
-                            let target_host = extract_target_host_from_args(name, &tc.arguments)
-                                .unwrap_or_else(|| format!("internet:{name}"));
-                            (
-                                "Internet Mode".to_string(),
-                                name.clone(),
-                                target_host,
-                                category.clone(),
-                                false,
-                                true,
-                                *is_active_probe,
-                            )
-                        }
-                    };
+                let (
+                    server_label,
+                    tool_display_name,
+                    resource_key,
+                    primary_cat,
+                    is_builtin_project,
+                    is_builtin_internet,
+                    is_builtin_ssh,
+                    is_mutating,
+                ) = match target {
+                    ResolvedToolTarget::Mcp(mcp_tool) => {
+                        record.server_id = Some(mcp_tool.server_id.clone());
+                        let cat = mcp_tool
+                            .required_permissions
+                            .iter()
+                            .find(|p| *p != "mcp_tools")
+                            .cloned()
+                            .unwrap_or_else(|| "mcp_tools".into());
+                        (
+                            mcp_tool.server_name.clone(),
+                            mcp_tool.name.clone(),
+                            format!("{}:{}", mcp_tool.server_name, mcp_tool.name),
+                            cat,
+                            false,
+                            false,
+                            false,
+                            true,
+                        )
+                    }
+                    ResolvedToolTarget::BuiltinProject {
+                        name,
+                        category,
+                        is_mutating,
+                    } => {
+                        record.server_id = Some("builtin:project".into());
+                        (
+                            "Project Workspace".to_string(),
+                            name.clone(),
+                            format!("project:{name}"),
+                            category.clone(),
+                            true,
+                            false,
+                            false,
+                            *is_mutating,
+                        )
+                    }
+                    ResolvedToolTarget::BuiltinInternet {
+                        name,
+                        category,
+                        is_active_probe,
+                    } => {
+                        record.server_id = Some("builtin:internet".into());
+                        let target_host = extract_target_host_from_args(name, &tc.arguments)
+                            .unwrap_or_else(|| format!("internet:{name}"));
+                        (
+                            "Internet Mode".to_string(),
+                            name.clone(),
+                            target_host,
+                            category.clone(),
+                            false,
+                            true,
+                            false,
+                            *is_active_probe,
+                        )
+                    }
+                    ResolvedToolTarget::BuiltinSsh {
+                        name,
+                        category,
+                        is_mutating,
+                    } => {
+                        record.server_id = Some("builtin:ssh".into());
+                        let target_srv = active_ssh_server
+                            .as_ref()
+                            .map(|s| format!("ssh:{}@{}:{}", s.username, s.host, s.port))
+                            .unwrap_or_else(|| format!("ssh:{name}"));
+                        (
+                            active_ssh_server
+                                .as_ref()
+                                .map(|s| format!("SSH ({})", s.name))
+                                .unwrap_or_else(|| "SSH Server".to_string()),
+                            name.clone(),
+                            target_srv,
+                            category.clone(),
+                            false,
+                            false,
+                            true,
+                            *is_mutating,
+                        )
+                    }
+                };
 
-                // Enforce file directory scope if arguments specify a path (skipped for internet tools)
-                if !is_builtin_internet {
+                // Enforce file directory scope if arguments specify a path (skipped for internet/ssh tools)
+                if !is_builtin_internet && !is_builtin_ssh {
                     if let Some(ag) = agent.as_ref() {
                         if let Err(scope_err) = enforce_agent_file_scope(
                             &self.db,
@@ -695,6 +793,9 @@ impl AgentRuntime {
                     is_mutating
                 } else if is_builtin_internet {
                     settings.internet.require_approval_for_scans && is_mutating
+                } else if is_builtin_ssh {
+                    // In Review mode, read-only SSH inspection runs smoothly; exec & file writes ask user.
+                    is_mutating
                 } else {
                     agent
                         .as_ref()
@@ -730,11 +831,17 @@ impl AgentRuntime {
                         describe_project_action(&tool_display_name, &tc.arguments)
                     } else if is_builtin_internet {
                         describe_internet_action(&tool_display_name, &tc.arguments)
+                    } else if is_builtin_ssh {
+                        if let Some(ref srv) = active_ssh_server {
+                            describe_ssh_action(&tool_display_name, &tc.arguments, srv)
+                        } else {
+                            format!("Run SSH tool '{tool_display_name}'")
+                        }
                     } else {
                         format!("Execute MCP tool '{tool_display_name}'")
                     };
 
-                    let affected_resources = if is_builtin_internet {
+                    let affected_resources = if is_builtin_internet || is_builtin_ssh {
                         vec![resource_key.clone()]
                     } else {
                         extract_affected_resources(&tc.arguments, &resource_key)
@@ -744,6 +851,11 @@ impl AgentRuntime {
                         format!(
                             "{} requested '{}' via {} (Review Mode). Confirm you are authorized to probe '{}'.",
                             actor_name, tool_display_name, server_label, resource_key
+                        )
+                    } else if is_builtin_ssh {
+                        format!(
+                            "{} requested '{}' on {} (Review Mode). Switch to Turbo mode for unattended server automation.",
+                            actor_name, tool_display_name, server_label
                         )
                     } else {
                         format!(
@@ -828,6 +940,32 @@ impl AgentRuntime {
                             if res.is_ok() { "info" } else { "warn" },
                             &format!(
                                 "Internet Mode '{}' executed {} on {}",
+                                actor_name, name, resource_key
+                            ),
+                            res.as_ref().err().map(|e| e.to_string()).as_deref(),
+                        );
+                        res.map(|v| (v, vec![]))
+                    }
+                    ResolvedToolTarget::BuiltinSsh { name, .. } => {
+                        let srv_id = active_ssh_server
+                            .as_ref()
+                            .map(|s| s.id.as_str())
+                            .ok_or_else(|| {
+                                AppError::Ssh("No SSH server attached to this conversation".into())
+                            })?;
+                        let res = execute_builtin_ssh_tool(
+                            &self.ssh,
+                            srv_id,
+                            name,
+                            &tc.arguments,
+                            cancel.clone(),
+                        )
+                        .await;
+                        self.db.log_event(
+                            "ssh",
+                            if res.is_ok() { "info" } else { "warn" },
+                            &format!(
+                                "SSH '{}' executed {} on {}",
                                 actor_name, name, resource_key
                             ),
                             res.as_ref().err().map(|e| e.to_string()).as_deref(),
@@ -968,6 +1106,7 @@ impl AgentRuntime {
             active_model: ag.model_id.clone(),
             active_agent_id: Some(ag.id.clone()),
             project_id: project_id.map(String::from),
+            ssh_server_id: None,
             system_prompt_override: None,
             created_at: now.clone(),
             updated_at: now,
@@ -1564,12 +1703,14 @@ mod tests {
         let db = Arc::new(Database::open_in_memory(dir.path().to_path_buf(), redactor.clone()).unwrap());
         let creds = Arc::new(CredentialStore::new_in_memory(redactor.clone()));
         let mcp = Arc::new(McpHubManager::new(db.clone(), creds.clone(), redactor.clone()));
+        let ssh = Arc::new(SshManager::new(db.clone(), creds.clone(), redactor.clone()));
         let perms = Arc::new(PermissionManager::new(db.clone()));
         let runtime = Arc::new(AgentRuntime::new(
             db.clone(),
             creds.clone(),
             redactor,
             mcp.clone(),
+            ssh,
             perms.clone(),
         ));
 
@@ -1677,6 +1818,7 @@ mod tests {
             active_model: Some("mock-model".into()),
             active_agent_id: Some("ag-1".into()),
             project_id: None,
+            ssh_server_id: None,
             system_prompt_override: None,
             created_at: now.clone(),
             updated_at: now,
@@ -1742,8 +1884,9 @@ mod tests {
         let db = Arc::new(Database::open_in_memory(dir.path().to_path_buf(), redactor.clone()).unwrap());
         let creds = Arc::new(CredentialStore::new_in_memory(redactor.clone()));
         let mcp = Arc::new(McpHubManager::new(db.clone(), creds.clone(), redactor.clone()));
+        let ssh = Arc::new(SshManager::new(db.clone(), creds.clone(), redactor.clone()));
         let perms = Arc::new(PermissionManager::new(db.clone()));
-        let runtime = AgentRuntime::new(db.clone(), creds.clone(), redactor, mcp, perms);
+        let runtime = AgentRuntime::new(db.clone(), creds.clone(), redactor, mcp, ssh, perms);
 
         let now = Utc::now().to_rfc3339();
         db.upsert_provider(&AiProvider {
@@ -1778,6 +1921,7 @@ mod tests {
             active_model: Some("deleted-model".into()),
             active_agent_id: None,
             project_id: None,
+            ssh_server_id: None,
             system_prompt_override: None,
             created_at: now.clone(),
             updated_at: now,
@@ -1895,12 +2039,14 @@ mod tests {
         let db = Arc::new(Database::open_in_memory(dir.path().to_path_buf(), redactor.clone()).unwrap());
         let creds = Arc::new(CredentialStore::new_in_memory(redactor.clone()));
         let mcp = Arc::new(McpHubManager::new(db.clone(), creds.clone(), redactor.clone()));
+        let ssh = Arc::new(SshManager::new(db.clone(), creds.clone(), redactor.clone()));
         let perms = Arc::new(PermissionManager::new(db.clone()));
         let runtime = Arc::new(AgentRuntime::new(
             db.clone(),
             creds,
             redactor,
             mcp,
+            ssh,
             perms.clone(),
         ));
 
@@ -1936,6 +2082,7 @@ mod tests {
             active_model: Some("m1".into()),
             active_agent_id: None, // tests fallback to tpl-coding
             project_id: Some(imported.project.id.clone()),
+            ssh_server_id: None,
             system_prompt_override: None,
             created_at: now.clone(),
             updated_at: now.clone(),
@@ -1993,6 +2140,7 @@ mod tests {
             active_model: Some("m1".into()),
             active_agent_id: None,
             project_id: Some(imported.project.id.clone()),
+            ssh_server_id: None,
             system_prompt_override: None,
             created_at: now.clone(),
             updated_at: now,
@@ -2096,12 +2244,14 @@ mod tests {
         let db = Arc::new(Database::open_in_memory(dir.path().to_path_buf(), redactor.clone()).unwrap());
         let creds = Arc::new(CredentialStore::new_in_memory(redactor.clone()));
         let mcp = Arc::new(McpHubManager::new(db.clone(), creds.clone(), redactor.clone()));
+        let ssh = Arc::new(SshManager::new(db.clone(), creds.clone(), redactor.clone()));
         let perms = Arc::new(PermissionManager::new(db.clone()));
         let runtime = Arc::new(AgentRuntime::new(
             db.clone(),
             creds,
             redactor,
             mcp,
+            ssh,
             perms.clone(),
         ));
 
@@ -2139,6 +2289,7 @@ mod tests {
             active_model: Some("m1".into()),
             active_agent_id: None,
             project_id: None,
+            ssh_server_id: None,
             system_prompt_override: None,
             created_at: now.clone(),
             updated_at: now,

@@ -1,0 +1,20 @@
+---
+version: "v0.1.2-pre"
+releaseDate: "2026-11-19"
+product: "NOCTRA STUDIO"
+isSampleData: false
+summary: "Added built-in SSH server connectivity (with password & private key authentication), interactive SSH command runner, Quick SSH modal in Chat, and automated remote server operations for AI agents."
+added:
+  - "Pure-Rust async SSH engine (russh) supporting password authentication (with automatic PAM keyboard-interactive fallback), private key files/PEM with optional passphrase, keepalive session pooling, and TOFU SHA-256 host key fingerprint verification."
+  - "Dedicated SSH Servers view with masked password input (save securely in OS Keychain or keep in RAM for the current session), Test Connection, Connect/Disconnect, Live SSH Command Runner, and one-click Automate with AI launch."
+  - "Quick SSH modal and per-conversation SSH server selector directly in the Chat toolbar with live connection status banner, Inspector panel, and Status Bar indicator."
+  - "Built-in AI server automation tools: ssh_exec, ssh_read_file, ssh_write_file (safe base64 transfer), ssh_list_dir, and ssh_system_info — supporting hands-free Turbo auto execution or per-command Review Mode approval."
+  - "Pre-seeded SSH Server Operator agent template (tpl-ssh-ops) tuned for remote Linux/Unix administration and troubleshooting."
+improvements:
+  - "Automatic SecretRedactor scrubbing for all SSH passwords and command outputs; SSH credentials are strictly excluded from portable backups and purged on local data wipe."
+  - "Added dedicated remote SSH operation warning banner in ApprovalModal for ssh_exec and ssh_write_file actions."
+bugFixes: []
+breakingChanges: []
+---
+
+NOCTRA STUDIO `v0.1.2-pre` introduces **SSH Server Automation**, allowing you to connect directly to remote servers with a password or SSH key and let AI inspect, configure, deploy, and operate on servers automatically with full Review/Turbo execution control and OS Keychain credential isolation.

@@ -522,8 +522,9 @@ mod tests {
         let db = Arc::new(Database::open_in_memory(dir.path().to_path_buf(), redactor.clone()).unwrap());
         let creds = Arc::new(CredentialStore::new_in_memory(redactor.clone()));
         let mcp = Arc::new(McpHubManager::new(db.clone(), creds.clone(), redactor.clone()));
+        let ssh = Arc::new(crate::ssh::SshManager::new(db.clone(), creds.clone(), redactor.clone()));
         let perms = Arc::new(PermissionManager::new(db.clone()));
-        let runtime = Arc::new(AgentRuntime::new(db.clone(), creds, redactor, mcp, perms));
+        let runtime = Arc::new(AgentRuntime::new(db.clone(), creds, redactor, mcp, ssh, perms));
         let engine = WorkflowEngine::new(runtime);
 
         let now = Utc::now().to_rfc3339();

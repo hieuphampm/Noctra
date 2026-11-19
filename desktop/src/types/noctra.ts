@@ -3,6 +3,7 @@ export type NavSection =
   | "providers"
   | "agents"
   | "mcp"
+  | "ssh"
   | "skills"
   | "workflows"
   | "projects"
@@ -127,6 +128,7 @@ export interface Conversation {
   activeModel: string | null;
   activeAgentId: string | null;
   projectId: string | null;
+  sshServerId?: string | null;
   systemPromptOverride: string | null;
   createdAt: string;
   updatedAt: string;
@@ -574,4 +576,62 @@ export interface AuditLogEntry {
   message: string;
   detail: string | null;
   createdAt: string;
+}
+
+export interface SshServer {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  authType: "password" | "private_key";
+  privateKeyPath: string | null;
+  defaultWorkingDir: string;
+  notes: string;
+  hostFingerprint: string | null;
+  hasPassword: boolean;
+  hasPrivateKey: boolean;
+  status: "disconnected" | "connecting" | "connected" | "error";
+  lastError: string | null;
+  lastConnectedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SshServerInput {
+  id?: string | null;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  authType: "password" | "private_key";
+  password?: string | null;
+  savePassword?: boolean;
+  clearPassword?: boolean;
+  privateKeyPath?: string | null;
+  privateKeyPem?: string | null;
+  clearPrivateKey?: boolean;
+  passphrase?: string | null;
+  defaultWorkingDir: string;
+  notes: string;
+}
+
+export interface SshExecResult {
+  serverId: string;
+  command: string;
+  workingDir: string | null;
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  durationMs: number;
+  truncated: boolean;
+}
+
+export interface SshTestResult {
+  ok: boolean;
+  latencyMs: number;
+  hostFingerprint: string | null;
+  serverBanner: string | null;
+  remoteWhoami: string | null;
+  message: string;
 }

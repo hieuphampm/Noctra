@@ -7,6 +7,7 @@ import {
   MessageSquarePlus,
   Plug,
   Search,
+  Server,
   Settings,
   Sparkles,
   Store,
@@ -86,6 +87,13 @@ export function CommandPalette({
       hint: "Ctrl+Shift+M",
       icon: Plug,
       action: () => go("mcp"),
+    },
+    {
+      id: "nav-ssh",
+      label: t("cmd.navSsh"),
+      hint: "SSH Remote Automation",
+      icon: Server,
+      action: () => go("ssh"),
     },
     {
       id: "nav-skills",

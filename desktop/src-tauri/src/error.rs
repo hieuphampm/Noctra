@@ -30,6 +30,9 @@ pub enum AppError {
     #[error("Workflow error: {0}")]
     Workflow(String),
 
+    #[error("SSH error: {0}")]
+    Ssh(String),
+
     #[error("IO error: {0}")]
     Io(String),
 

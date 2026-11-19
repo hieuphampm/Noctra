@@ -1,7 +1,7 @@
 {
   "name": "noctra-studio",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "NOCTRA STUDIO — Privacy-First Desktop AI Agent Platform",
   "type": "module",
   "scripts": {

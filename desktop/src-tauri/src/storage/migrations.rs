@@ -44,6 +44,7 @@ pub fn run_migrations(conn: &Connection) -> AppResult<()> {
             active_model TEXT,
             active_agent_id TEXT,
             project_id TEXT,
+            ssh_server_id TEXT,
             system_prompt_override TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
@@ -255,6 +256,24 @@ pub fn run_migrations(conn: &Connection) -> AppResult<()> {
             created_at TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS ssh_servers (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            host TEXT NOT NULL,
+            port INTEGER NOT NULL DEFAULT 22,
+            username TEXT NOT NULL,
+            auth_type TEXT NOT NULL DEFAULT 'password',
+            private_key_path TEXT,
+            default_working_dir TEXT NOT NULL DEFAULT '',
+            notes TEXT NOT NULL DEFAULT '',
+            host_fingerprint TEXT,
+            has_password INTEGER NOT NULL DEFAULT 0,
+            has_private_key INTEGER NOT NULL DEFAULT 0,
+            last_connected_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
         "#,
     )?;
 
@@ -278,8 +297,55 @@ pub fn run_migrations(conn: &Connection) -> AppResult<()> {
         "INTEGER NOT NULL DEFAULT 0",
     )?;
 
-    seed_security_auditor_template(conn)?;
+    ensure_column_exists(
+        conn,
+        "conversations",
+        "ssh_server_id",
+        "TEXT",
+    )?;
 
+    seed_security_auditor_template(conn)?;
+    seed_ssh_operator_template(conn)?;
+
+    Ok(())
+}
+
+fn seed_ssh_operator_template(conn: &Connection) -> AppResult<()> {
+    let now = Utc::now().to_rfc3339();
+    let default_mem = serde_json::json!({
+        "conversationMemory": true,
+        "agentLocalMemory": true,
+        "projectMemory": true,
+        "retentionMessages": 30
+    })
+    .to_string();
+
+    conn.execute(
+        r#"INSERT OR IGNORE INTO agents (
+            id, name, description, avatar, role, personality, system_instructions,
+            provider_id, model_id, temperature, max_tokens, context_window,
+            assigned_mcp_server_ids_json, enabled_tool_ids_json, assigned_skill_ids_json,
+            file_access_mode, allowed_directories_json, internet_access, external_api_access,
+            autonomous_execution, require_approval_sensitive, max_steps, max_tool_calls,
+            max_runtime_secs, retry_policy, error_strategy, memory_config_json, is_template,
+            created_at, updated_at
+        ) VALUES (
+            'tpl-ssh-ops',
+            'SSH Server Operator',
+            'Automates remote Linux/Unix server diagnostics, deployments, file editing, and service administration over SSH.',
+            'terminal',
+            'DevOps & Site Reliability Engineer',
+            'Systematic, safe, verification-first',
+            'You are a skilled DevOps and Linux/Unix Server Operator. When an SSH server is attached, use ssh_system_info, ssh_list_dir, ssh_read_file, ssh_write_file, and ssh_exec to inspect, configure, deploy, and troubleshoot the remote server step by step. Always prefer non-interactive commands (e.g. apt-get -y, systemctl status --no-pager), inspect state before modifying critical configs, verify outcomes after changes, and report concise summaries with command outputs.',
+            NULL, NULL, 0.2, 4096, 32768,
+            '[]', '[]', '[]',
+            'none', '[]', 0, 0,
+            0, 1, 16, 32,
+            240, 'once', 'stop', ?1, 1,
+            ?2, ?2
+        )"#,
+        rusqlite::params![default_mem, now],
+    )?;
     Ok(())
 }
 

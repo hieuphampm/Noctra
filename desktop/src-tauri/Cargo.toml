@@ -1,6 +1,6 @@
 [package]
 name = "noctra-studio"
-version = "0.1.1"
+version = "0.1.2"
 description = "NOCTRA STUDIO — Privacy-First Desktop AI Agent Platform"
 authors = ["NOCTRA STUDIO"]
 edition = "2021"
@@ -32,6 +32,7 @@ base64 = "0.22"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 keyring = { version = "3", features = ["windows-native", "apple-native", "sync-secret-service"] }
 jsonschema = { version = "0.18", default-features = false }
+russh = { version = "0.65", default-features = false, features = ["ring", "flate2", "rsa"] }
 
 [dev-dependencies]
 tempfile = "3"

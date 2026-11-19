@@ -58,6 +58,10 @@
     {
       "title": "Internet Mode & Security Scanner",
       "description": "Opt-in per-conversation Internet Mode with built-in Rust TCP port scanning, service banner grabbing, DNS lookup, HTTP/HTTPS security header audits, and SSRF/allowlist guardrails."
+    },
+    {
+      "title": "SSH Server Automation",
+      "description": "Connect to remote Linux/Unix servers via password or SSH private key (stored in OS Keychain or session-only RAM) and let AI execute commands, inspect logs, and edit files automatically."
     }
   ],
   "subsystems": [
@@ -90,6 +94,11 @@
       "name": "Internet Mode & Security Diagnostics",
       "module": "src-tauri/src/internet/",
       "summary": "Native async Rust TCP port scanner, DNS resolver, HTTP/HTTPS security header auditor, and safe URL fetcher with Review Mode approval gates and private-IP SSRF protection."
+    },
+    {
+      "name": "SSH Remote Automation",
+      "module": "src-tauri/src/ssh/",
+      "summary": "Pure-Rust async SSH client (russh) with password/keyboard-interactive & private key authentication, TOFU host fingerprint verification, OS Keychain isolation, interactive terminal runner, and built-in AI tools (ssh_exec, ssh_read_file, ssh_write_file, ssh_list_dir, ssh_system_info)."
     }
   ],
   "securityModel": [

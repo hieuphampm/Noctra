@@ -203,4 +203,42 @@ describe("NOCTRA STUDIO UI & Store", () => {
       screen.getByText("TCP Port Scan on 'example.com' (ports: common)")
     ).toBeInTheDocument();
   });
+
+  it("navigates to SSH Servers with password input, opens Quick SSH modal in Chat, and shows SSH approval warning", () => {
+    render(<App />);
+
+    // Open Quick SSH modal right from Chat toolbar
+    fireEvent.click(screen.getByRole("button", { name: /Quick SSH/i }));
+    expect(screen.getByText("Connect SSH Server")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Enter SSH password...")).toBeInTheDocument();
+    expect(screen.getByText("Connect & Attach to Chat")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    // Navigate to SSH Servers module
+    fireEvent.click(screen.getByText("SSH Servers"));
+    expect(screen.getAllByText("New SSH Server").length).toBeGreaterThan(0);
+    expect(screen.getByPlaceholderText("Enter SSH password...")).toBeInTheDocument();
+    expect(screen.getByText("Automate with AI")).toBeInTheDocument();
+
+    // Verify SSH approval banner in ApprovalModal
+    act(() => {
+      useAppStore.getState().pushApprovalRequest({
+        id: "req-ssh-1",
+        agentId: "tpl-ssh-ops",
+        agentName: "SSH Server Operator",
+        category: "ssh_exec",
+        actionSummary: "Run SSH command on 'root@10.0.0.5:22': systemctl restart nginx",
+        reason: "SSH Server Operator requested 'ssh_exec' on SSH (Prod VPS) (Review Mode).",
+        toolName: "ssh_exec",
+        affectedResources: ["ssh:root@10.0.0.5:22"],
+        exactPayload: { command: "systemctl restart nginx" },
+        createdAt: new Date().toISOString(),
+      });
+    });
+
+    expect(screen.getByText(/Remote SSH Server Operation/i)).toBeInTheDocument();
+    expect(
+      screen.getByText("Run SSH command on 'root@10.0.0.5:22': systemctl restart nginx")
+    ).toBeInTheDocument();
+  });
 });
