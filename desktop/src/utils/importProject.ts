@@ -53,6 +53,7 @@ export async function pickAndImportProjectFolder(params: {
         title: `Project: ${result.project.name}`,
         mode: "agent",
         executionMode: store.preferredExecutionMode,
+        internetMode: store.preferredInternetMode,
         providerId: prov?.id ?? null,
         model: prov?.modelId ?? null,
         agentId: defaultCodingAgent,

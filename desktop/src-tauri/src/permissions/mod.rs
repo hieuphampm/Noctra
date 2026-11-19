@@ -179,11 +179,17 @@ impl PermissionManager {
 }
 
 fn pattern_matches(pattern: &str, resource: &str) -> bool {
-    if pattern == "*" || pattern == resource {
+    let pat = pattern.trim();
+    if pat == "*" || pat.eq_ignore_ascii_case(resource) {
         return true;
     }
-    if let Some(prefix) = pattern.strip_suffix('*') {
+    if let Some(prefix) = pat.strip_suffix('*') {
         return resource.starts_with(prefix);
+    }
+    if let Some(suffix) = pat.strip_prefix("*.") {
+        let res_lower = resource.to_ascii_lowercase();
+        let suf_lower = suffix.to_ascii_lowercase();
+        return res_lower == suf_lower || res_lower.ends_with(&format!(".{suf_lower}"));
     }
     false
 }

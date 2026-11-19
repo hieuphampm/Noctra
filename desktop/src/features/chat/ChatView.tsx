@@ -10,6 +10,7 @@ import {
   Edit3,
   FileText,
   FolderPlus,
+  Globe,
   Image as ImageIcon,
   Paperclip,
   RotateCcw,
@@ -35,6 +36,7 @@ import { Select } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { ExecutionModeToggle } from "@/components/workspace/ExecutionModeToggle";
+import { InternetModeToggle } from "@/components/workspace/InternetModeToggle";
 import { ProjectTreeSidebar } from "@/components/workspace/ProjectTreeSidebar";
 import { CodeEditorPane } from "@/components/workspace/CodeEditorPane";
 import { AiChangedFilesPopup } from "@/components/workspace/AiChangedFilesPopup";
@@ -49,6 +51,9 @@ export function ChatView() {
   const setActiveProjectId = useAppStore((s) => s.setActiveProjectId);
   const preferredExecutionMode = useAppStore((s) => s.preferredExecutionMode);
   const setPreferredExecutionMode = useAppStore((s) => s.setPreferredExecutionMode);
+  const preferredInternetMode = useAppStore((s) => s.preferredInternetMode);
+  const setPreferredInternetMode = useAppStore((s) => s.setPreferredInternetMode);
+  const setSettingsSection = useAppStore((s) => s.setSettingsSection);
   const workspaceSplitOpen = useAppStore((s) => s.workspaceSplitOpen);
   const setWorkspaceSplitOpen = useAppStore((s) => s.setWorkspaceSplitOpen);
   const pendingComposerInsert = useAppStore((s) => s.pendingComposerInsert);
@@ -134,11 +139,14 @@ export function ChatView() {
 
   const effectiveExecMode: ExecutionMode =
     activeConv?.executionMode ?? preferredExecutionMode;
+  const effectiveInternetMode: boolean =
+    activeConv?.internetMode ?? preferredInternetMode;
 
   const ensureConversation = async (
     overrides?: Partial<{
       mode: "direct" | "agent";
       executionMode: ExecutionMode;
+      internetMode: boolean;
       projectId: string | null;
       agentId: string | null;
     }>
@@ -155,6 +163,7 @@ export function ChatView() {
       title: targetProject && activeProject ? `Project: ${activeProject.name}` : "New Conversation",
       mode: targetMode,
       executionMode: overrides?.executionMode ?? preferredExecutionMode,
+      internetMode: overrides?.internetMode ?? preferredInternetMode,
       providerId: providers[0]?.id ?? null,
       model: providers[0]?.modelId ?? null,
       agentId: defaultAgent,
@@ -187,6 +196,13 @@ export function ChatView() {
     setPreferredExecutionMode(mode);
     if (activeConv) {
       await updateConvField({ executionMode: mode });
+    }
+  };
+
+  const handleInternetModeChange = async (enabled: boolean) => {
+    setPreferredInternetMode(enabled);
+    if (activeConv) {
+      await updateConvField({ internetMode: enabled });
     }
   };
 
@@ -278,6 +294,7 @@ export function ChatView() {
       const next = await ensureConversation({
         mode: patch.mode,
         executionMode: patch.executionMode,
+        internetMode: patch.internetMode,
         projectId: patch.projectId,
         agentId: patch.activeAgentId,
       });
@@ -498,6 +515,12 @@ export function ChatView() {
             value={effectiveExecMode}
             onChange={handleExecutionModeChange}
           />
+
+          {/* Internet Mode Toggle (Built-in Port Scan, DNS, HTTP Audit, Web Fetch) */}
+          <InternetModeToggle
+            enabled={effectiveInternetMode}
+            onChange={handleInternetModeChange}
+          />
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -535,6 +558,27 @@ export function ChatView() {
           )}
         </div>
       </div>
+
+      {/* Internet Mode active status bar */}
+      {effectiveInternetMode && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#67DDF2]/30 bg-[#67DDF2]/10 px-4 py-1.5 text-[11px] text-[#F3F4F8]">
+          <span className="flex items-center gap-1.5">
+            <Globe className="h-3.5 w-3.5 text-[#67DDF2] shrink-0" />
+            <span>{t("internet.bannerActive")}</span>
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-6 px-2.5 text-[10px]"
+            onClick={() => {
+              setSettingsSection("internet");
+              setSection("settings");
+            }}
+          >
+            {t("internet.bannerConfigure")}
+          </Button>
+        </div>
+      )}
 
       {/* Helpful hint when a project is attached in Direct mode */}
       {activeProject && (activeConv?.mode ?? "direct") === "direct" && (

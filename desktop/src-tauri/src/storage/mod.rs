@@ -112,12 +112,15 @@ impl Database {
         if settings.skills.install_directory.is_empty() {
             settings.skills.install_directory = self.skills_dir().to_string_lossy().to_string();
         }
+        settings.internet = settings.internet.sanitized();
         Ok(settings)
     }
 
     pub fn save_settings(&self, settings: &AppSettings) -> AppResult<()> {
+        let mut clean = settings.clone();
+        clean.internet = clean.internet.sanitized();
         let conn = self.conn.lock().unwrap();
-        let json = serde_json::to_string(settings)?;
+        let json = serde_json::to_string(&clean)?;
         conn.execute(
             "INSERT INTO app_settings (key, value_json) VALUES ('app_settings', ?1) ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json",
             [json],
@@ -251,7 +254,7 @@ impl Database {
     pub fn list_conversations(&self) -> AppResult<Vec<Conversation>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, title, mode, execution_mode, active_provider_id, active_model, active_agent_id, project_id, system_prompt_override, created_at, updated_at FROM conversations ORDER BY updated_at DESC",
+            "SELECT id, title, mode, execution_mode, internet_mode, active_provider_id, active_model, active_agent_id, project_id, system_prompt_override, created_at, updated_at FROM conversations ORDER BY updated_at DESC",
         )?;
         let rows = stmt
             .query_map([], |r| {
@@ -260,13 +263,14 @@ impl Database {
                     title: r.get(1)?,
                     mode: r.get(2)?,
                     execution_mode: normalize_execution_mode(&r.get::<_, String>(3)?),
-                    active_provider_id: r.get(4)?,
-                    active_model: r.get(5)?,
-                    active_agent_id: r.get(6)?,
-                    project_id: r.get(7)?,
-                    system_prompt_override: r.get(8)?,
-                    created_at: r.get(9)?,
-                    updated_at: r.get(10)?,
+                    internet_mode: r.get::<_, i64>(4)? != 0,
+                    active_provider_id: r.get(5)?,
+                    active_model: r.get(6)?,
+                    active_agent_id: r.get(7)?,
+                    project_id: r.get(8)?,
+                    system_prompt_override: r.get(9)?,
+                    created_at: r.get(10)?,
+                    updated_at: r.get(11)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -282,13 +286,14 @@ impl Database {
         let exec_mode = normalize_execution_mode(&conv.execution_mode);
         conn.execute(
             r#"INSERT INTO conversations (
-                id, title, mode, execution_mode, active_provider_id, active_model, active_agent_id,
+                id, title, mode, execution_mode, internet_mode, active_provider_id, active_model, active_agent_id,
                 project_id, system_prompt_override, created_at, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
             ON CONFLICT(id) DO UPDATE SET
                 title = excluded.title,
                 mode = excluded.mode,
                 execution_mode = excluded.execution_mode,
+                internet_mode = excluded.internet_mode,
                 active_provider_id = excluded.active_provider_id,
                 active_model = excluded.active_model,
                 active_agent_id = excluded.active_agent_id,
@@ -300,6 +305,7 @@ impl Database {
                 conv.title,
                 conv.mode,
                 exec_mode,
+                if conv.internet_mode { 1 } else { 0 },
                 conv.active_provider_id,
                 conv.active_model,
                 conv.active_agent_id,
@@ -1443,6 +1449,7 @@ mod tests {
             title: "Chat".into(),
             mode: "direct".into(),
             execution_mode: "review".into(),
+            internet_mode: false,
             active_provider_id: Some("old-prov".into()),
             active_model: Some("gpt-4o-mini".into()),
             active_agent_id: None,

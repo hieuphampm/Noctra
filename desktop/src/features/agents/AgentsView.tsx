@@ -152,6 +152,7 @@ export function AgentsView() {
     const conv = await api.createConversation({
       title: `Agent: ${form.name}`,
       mode: "agent",
+      internetMode: form.internetAccess,
       agentId: form.id,
       providerId: validProvider?.id ?? null,
       model: form.modelId ?? validProvider?.modelId ?? null,

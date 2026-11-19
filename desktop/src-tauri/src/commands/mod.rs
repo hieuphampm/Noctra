@@ -195,22 +195,22 @@ pub fn create_conversation(
     title: Option<String>,
     mode: Option<String>,
     execution_mode: Option<String>,
+    internet_mode: Option<bool>,
     provider_id: Option<String>,
     model: Option<String>,
     agent_id: Option<String>,
     project_id: Option<String>,
 ) -> AppResult<Conversation> {
     let now = Utc::now().to_rfc3339();
-    let default_exec = state
-        .db
-        .get_settings()
-        .map(|s| s.agents.default_execution_mode)
-        .unwrap_or_else(|_| "review".into());
+    let settings = state.db.get_settings().unwrap_or_default();
+    let default_exec = settings.agents.default_execution_mode;
+    let default_internet = settings.internet.default_enabled;
     let conv = Conversation {
         id: Uuid::new_v4().to_string(),
         title: title.unwrap_or_else(|| "New Conversation".into()),
         mode: mode.unwrap_or_else(|| "direct".into()),
         execution_mode: normalize_execution_mode(execution_mode.as_deref().unwrap_or(&default_exec)),
+        internet_mode: internet_mode.unwrap_or(default_internet),
         active_provider_id: provider_id.filter(|s| !s.trim().is_empty()),
         active_model: model.filter(|s| !s.trim().is_empty()),
         active_agent_id: agent_id.filter(|s| !s.trim().is_empty()),

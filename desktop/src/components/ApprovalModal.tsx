@@ -1,4 +1,4 @@
-import { ShieldAlert, Terminal, CheckCircle2, XCircle } from "lucide-react";
+import { ShieldAlert, Terminal, CheckCircle2, XCircle, Globe } from "lucide-react";
 import { useAppStore } from "@/stores/appStore";
 import { useI18n } from "@/i18n";
 import { api } from "@/services/tauri";
@@ -52,6 +52,13 @@ export function ApprovalModal() {
         </div>
 
         <div className="space-y-3.5 p-5 text-xs">
+          {current.category === "internet_access" && (
+            <div className="flex items-start gap-2 rounded-lg border border-[#67DDF2]/35 bg-[#67DDF2]/10 px-3 py-2 text-[11px] text-[#67DDF2]">
+              <Globe className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>{t("internet.approvalWarning")}</span>
+            </div>
+          )}
+
           <div>
             <div className="text-[11px] uppercase tracking-wider text-[#9399AA] mb-1">
               {t("approval.action")}

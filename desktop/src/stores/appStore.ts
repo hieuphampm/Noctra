@@ -36,6 +36,8 @@ interface AppStoreState {
 
   // Workspace IDE & Execution Mode
   preferredExecutionMode: ExecutionMode;
+  preferredInternetMode: boolean;
+  settingsSection: "general" | "ai" | "mcp" | "agents" | "skills" | "security" | "internet" | "advanced";
   workspaceSplitOpen: boolean;
   openEditorTabs: OpenEditorTab[];
   activeEditorTabPath: string | null;
@@ -55,6 +57,10 @@ interface AppStoreState {
   setActiveConversationId: (id: string | null) => void;
   setActiveProjectId: (id: string | null) => void;
   setPreferredExecutionMode: (mode: ExecutionMode) => void;
+  setPreferredInternetMode: (enabled: boolean) => void;
+  setSettingsSection: (
+    s: "general" | "ai" | "mcp" | "agents" | "skills" | "security" | "internet" | "advanced"
+  ) => void;
   setWorkspaceSplitOpen: (v: boolean) => void;
   openEditorTab: (tab: OpenEditorTab) => void;
   updateEditorTabContent: (projectId: string, relativePath: string, content: string) => void;
@@ -105,6 +111,8 @@ export const useAppStore = create<AppStoreState>((set) => ({
   approvalQueue: [],
 
   preferredExecutionMode: "review",
+  preferredInternetMode: false,
+  settingsSection: "general",
   workspaceSplitOpen: true,
   openEditorTabs: [],
   activeEditorTabPath: null,
@@ -127,6 +135,8 @@ export const useAppStore = create<AppStoreState>((set) => ({
   setActiveConversationId: (activeConversationId) => set({ activeConversationId }),
   setActiveProjectId: (activeProjectId) => set({ activeProjectId }),
   setPreferredExecutionMode: (preferredExecutionMode) => set({ preferredExecutionMode }),
+  setPreferredInternetMode: (preferredInternetMode) => set({ preferredInternetMode }),
+  setSettingsSection: (settingsSection) => set({ settingsSection }),
   setWorkspaceSplitOpen: (workspaceSplitOpen) => set({ workspaceSplitOpen }),
   openEditorTab: (tab) =>
     set((s) => {

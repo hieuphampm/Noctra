@@ -2,6 +2,10 @@ use crate::ai::{
     build_openai_messages, complete_chat, OpenAiFunctionDef, OpenAiToolDef,
 };
 use crate::error::{AppError, AppResult};
+use crate::internet::{
+    builtin_internet_tool_specs, describe_internet_action, execute_builtin_internet_tool,
+    extract_target_host_from_args, internet_mode_system_prompt,
+};
 use crate::mcp::McpHubManager;
 use crate::permissions::{ApprovalDecision, PermissionManager};
 use crate::project_fs::{
@@ -45,6 +49,11 @@ enum ResolvedToolTarget {
         name: String,
         category: String,
         is_mutating: bool,
+    },
+    BuiltinInternet {
+        name: String,
+        category: String,
+        is_active_probe: bool,
     },
 }
 
@@ -204,6 +213,7 @@ impl AgentRuntime {
         &self,
         agent: &AgentConfig,
         project_id: Option<&str>,
+        internet_enabled: bool,
     ) -> AppResult<(Vec<OpenAiToolDef>, HashMap<String, McpTool>)> {
         let all_tools = self.db.list_mcp_tools()?;
         let allowed_servers: HashSet<&String> = agent.assigned_mcp_server_ids.iter().collect();
@@ -223,6 +233,13 @@ impl AgentRuntime {
 
         for tool in all_tools {
             if !tool.enabled || !tool.available {
+                continue;
+            }
+            let requires_internet = tool
+                .required_permissions
+                .iter()
+                .any(|p| p == "internet_access");
+            if requires_internet && !internet_enabled {
                 continue;
             }
             let server_ok = allowed_servers.is_empty() || allowed_servers.contains(&tool.server_id);
@@ -251,17 +268,25 @@ impl AgentRuntime {
 
     fn resolve_runtime_tools(
         &self,
-        agent: &AgentConfig,
+        agent: Option<&AgentConfig>,
         project_id: Option<&str>,
+        internet_enabled: bool,
     ) -> AppResult<(Vec<OpenAiToolDef>, HashMap<String, ResolvedToolTarget>)> {
-        let (mut defs, mcp_map) = self.resolve_permitted_tools_for_agent(agent, project_id)?;
-        let mut targets: HashMap<String, ResolvedToolTarget> = mcp_map
-            .into_iter()
-            .map(|(k, v)| (k, ResolvedToolTarget::Mcp(v)))
-            .collect();
+        let (mut defs, mut targets): (Vec<OpenAiToolDef>, HashMap<String, ResolvedToolTarget>) =
+            if let Some(ag) = agent {
+                let (d, mcp_map) =
+                    self.resolve_permitted_tools_for_agent(ag, project_id, internet_enabled)?;
+                let t = mcp_map
+                    .into_iter()
+                    .map(|(k, v)| (k, ResolvedToolTarget::Mcp(v)))
+                    .collect();
+                (d, t)
+            } else {
+                (vec![], HashMap::new())
+            };
 
-        if let Some(pid) = project_id {
-            if agent.file_access_mode != "none" && self.db.get_project(pid)?.is_some() {
+        if let (Some(ag), Some(pid)) = (agent, project_id) {
+            if ag.file_access_mode != "none" && self.db.get_project(pid)?.is_some() {
                 for spec in builtin_project_tool_specs() {
                     if !targets.contains_key(&spec.name) {
                         defs.push(OpenAiToolDef {
@@ -281,6 +306,29 @@ impl AgentRuntime {
                             },
                         );
                     }
+                }
+            }
+        }
+
+        if internet_enabled {
+            for spec in builtin_internet_tool_specs() {
+                if !targets.contains_key(&spec.name) {
+                    defs.push(OpenAiToolDef {
+                        kind: "function".into(),
+                        function: OpenAiFunctionDef {
+                            name: spec.name.clone(),
+                            description: spec.description,
+                            parameters: spec.parameters,
+                        },
+                    });
+                    targets.insert(
+                        spec.name.clone(),
+                        ResolvedToolTarget::BuiltinInternet {
+                            name: spec.name,
+                            category: spec.category,
+                            is_active_probe: spec.is_active_probe,
+                        },
+                    );
                 }
             }
         }
@@ -384,7 +432,10 @@ impl AgentRuntime {
             provider.max_tokens = ag.max_tokens;
         }
 
-        let system_prompt = if let Some(ag) = &agent {
+        let internet_enabled = conv.internet_mode
+            || agent.as_ref().map(|a| a.internet_access).unwrap_or(false);
+
+        let mut system_prompt = if let Some(ag) = &agent {
             self.build_agent_system_prompt(ag, conv.project_id.as_deref())?
         } else {
             conv.system_prompt_override
@@ -393,23 +444,41 @@ impl AgentRuntime {
                 .unwrap_or_else(|| provider.default_system_prompt.clone())
         };
 
-        let (tool_defs, tool_map) = if let Some(ag) = &agent {
-            self.resolve_runtime_tools(ag, conv.project_id.as_deref())?
-        } else {
-            (vec![], HashMap::new())
-        };
+        if internet_enabled {
+            let internet_note = internet_mode_system_prompt(&settings.internet);
+            if system_prompt.trim().is_empty() {
+                system_prompt = internet_note;
+            } else {
+                system_prompt = format!("{system_prompt}\n\n{internet_note}");
+            }
+        }
+
+        let (tool_defs, tool_map) =
+            self.resolve_runtime_tools(agent.as_ref(), conv.project_id.as_deref(), internet_enabled)?;
         let is_turbo = conv.execution_mode.eq_ignore_ascii_case("turbo");
 
         let max_steps = agent
             .as_ref()
             .map(|a| a.max_steps)
-            .unwrap_or(1)
+            .unwrap_or_else(|| {
+                if tool_defs.is_empty() {
+                    1
+                } else {
+                    settings.agents.default_max_steps
+                }
+            })
             .max(1);
-        let max_tool_calls = agent.as_ref().map(|a| a.max_tool_calls).unwrap_or(0);
+        let max_tool_calls = agent.as_ref().map(|a| a.max_tool_calls).unwrap_or_else(|| {
+            if tool_defs.is_empty() {
+                0
+            } else {
+                settings.agents.default_max_tool_calls.max(4)
+            }
+        });
         let max_runtime_secs = agent
             .as_ref()
             .map(|a| a.max_runtime_secs)
-            .unwrap_or(120)
+            .unwrap_or_else(|| settings.agents.default_max_runtime_secs)
             .max(10);
 
         let started = Instant::now();
@@ -459,7 +528,7 @@ impl AgentRuntime {
             )
             .await?;
 
-            if completion.tool_calls.is_empty() || agent.is_none() {
+            if completion.tool_calls.is_empty() || tool_defs.is_empty() {
                 let final_msg = ChatMessage {
                     id: Uuid::new_v4().to_string(),
                     conversation_id: conversation_id.clone(),
@@ -484,9 +553,13 @@ impl AgentRuntime {
                 return Ok(final_msg);
             }
 
-            // Agent requested tool calls: enforce permission pipeline deterministically
+            // Agent or Internet Mode requested tool calls: enforce permission pipeline deterministically
             let assistant_ts = Utc::now();
-            let ag = agent.as_ref().unwrap();
+            let actor_id: Option<String> = agent.as_ref().map(|a| a.id.clone());
+            let actor_name: String = agent
+                .as_ref()
+                .map(|a| a.name.clone())
+                .unwrap_or_else(|| "Internet Mode".into());
             let mut recorded_calls = Vec::new();
             let mut tool_result_msgs = Vec::new();
 
@@ -513,15 +586,15 @@ impl AgentRuntime {
                 let Some(target) = tool_map.get(&tc.name) else {
                     record.status = "error".into();
                     record.error = Some(format!(
-                        "Permission denied: tool '{}' is not assigned or enabled for agent '{}'",
-                        tc.name, ag.name
+                        "Permission denied: tool '{}' is not assigned or enabled for '{}'",
+                        tc.name, actor_name
                     ));
                     recorded_calls.push(record.clone());
                     tool_result_msgs.push(make_tool_error_msg(&conversation_id, tc.id, record.error.as_deref()));
                     continue;
                 };
 
-                let (server_label, tool_display_name, resource_key, primary_cat, is_builtin, is_mutating) =
+                let (server_label, tool_display_name, resource_key, primary_cat, is_builtin_project, is_builtin_internet, is_mutating) =
                     match target {
                         ResolvedToolTarget::Mcp(mcp_tool) => {
                             record.server_id = Some(mcp_tool.server_id.clone());
@@ -536,6 +609,7 @@ impl AgentRuntime {
                                 mcp_tool.name.clone(),
                                 format!("{}:{}", mcp_tool.server_name, mcp_tool.name),
                                 cat,
+                                false,
                                 false,
                                 true,
                             )
@@ -552,28 +626,51 @@ impl AgentRuntime {
                                 format!("project:{name}"),
                                 category.clone(),
                                 true,
+                                false,
                                 *is_mutating,
+                            )
+                        }
+                        ResolvedToolTarget::BuiltinInternet {
+                            name,
+                            category,
+                            is_active_probe,
+                        } => {
+                            record.server_id = Some("builtin:internet".into());
+                            let target_host = extract_target_host_from_args(name, &tc.arguments)
+                                .unwrap_or_else(|| format!("internet:{name}"));
+                            (
+                                "Internet Mode".to_string(),
+                                name.clone(),
+                                target_host,
+                                category.clone(),
+                                false,
+                                true,
+                                *is_active_probe,
                             )
                         }
                     };
 
-                // Enforce file directory scope if arguments specify a path
-                if let Err(scope_err) = enforce_agent_file_scope(
-                    &self.db,
-                    ag,
-                    conv.project_id.as_deref(),
-                    &tc.arguments,
-                ) {
-                    record.status = "denied".into();
-                    record.error = Some(scope_err.to_string());
-                    recorded_calls.push(record.clone());
-                    tool_result_msgs.push(make_tool_error_msg(&conversation_id, tc.id, record.error.as_deref()));
-                    continue;
+                // Enforce file directory scope if arguments specify a path (skipped for internet tools)
+                if !is_builtin_internet {
+                    if let Some(ag) = agent.as_ref() {
+                        if let Err(scope_err) = enforce_agent_file_scope(
+                            &self.db,
+                            ag,
+                            conv.project_id.as_deref(),
+                            &tc.arguments,
+                        ) {
+                            record.status = "denied".into();
+                            record.error = Some(scope_err.to_string());
+                            recorded_calls.push(record.clone());
+                            tool_result_msgs.push(make_tool_error_msg(&conversation_id, tc.id, record.error.as_deref()));
+                            continue;
+                        }
+                    }
                 }
 
                 // Evaluate permission mode + Review vs Turbo execution mode
                 let mode = self.permissions.evaluate_mode(
-                    Some(&ag.id),
+                    actor_id.as_deref(),
                     conv.project_id.as_deref(),
                     &primary_cat,
                     &resource_key,
@@ -593,11 +690,17 @@ impl AgentRuntime {
                     false
                 } else if mode == "always" || mode == "session" {
                     false
-                } else if is_builtin {
+                } else if is_builtin_project {
                     // In Review mode, read-only project exploration runs smoothly; mutating edits always ask user.
                     is_mutating
+                } else if is_builtin_internet {
+                    settings.internet.require_approval_for_scans && is_mutating
                 } else {
-                    ag.require_approval_sensitive || !ag.autonomous_execution || mode == "ask"
+                    agent
+                        .as_ref()
+                        .map(|ag| ag.require_approval_sensitive || !ag.autonomous_execution)
+                        .unwrap_or(true)
+                        || mode == "ask"
                 };
 
                 if needs_approval {
@@ -612,7 +715,7 @@ impl AgentRuntime {
                         changed_paths: None,
                     });
 
-                    let diff_preview = if is_builtin {
+                    let diff_preview = if is_builtin_project {
                         build_project_diff_preview(
                             &self.db,
                             conv.project_id.as_deref(),
@@ -623,23 +726,40 @@ impl AgentRuntime {
                         None
                     };
 
-                    let action_summary = if is_builtin {
+                    let action_summary = if is_builtin_project {
                         describe_project_action(&tool_display_name, &tc.arguments)
+                    } else if is_builtin_internet {
+                        describe_internet_action(&tool_display_name, &tc.arguments)
                     } else {
                         format!("Execute MCP tool '{tool_display_name}'")
                     };
 
-                    let (req, rx) = self.permissions.create_approval_ticket(
-                        Some(ag.id.clone()),
-                        Some(ag.name.clone()),
-                        primary_cat.clone(),
-                        action_summary,
+                    let affected_resources = if is_builtin_internet {
+                        vec![resource_key.clone()]
+                    } else {
+                        extract_affected_resources(&tc.arguments, &resource_key)
+                    };
+
+                    let reason = if is_builtin_internet {
+                        format!(
+                            "{} requested '{}' via {} (Review Mode). Confirm you are authorized to probe '{}'.",
+                            actor_name, tool_display_name, server_label, resource_key
+                        )
+                    } else {
                         format!(
                             "Agent '{}' requested '{}' via {} (Review Mode)",
-                            ag.name, tool_display_name, server_label
-                        ),
+                            actor_name, tool_display_name, server_label
+                        )
+                    };
+
+                    let (req, rx) = self.permissions.create_approval_ticket(
+                        actor_id.clone(),
+                        Some(actor_name.clone()),
+                        primary_cat.clone(),
+                        action_summary,
+                        reason,
                         tool_display_name.clone(),
-                        extract_affected_resources(&tc.arguments, &resource_key),
+                        affected_resources,
                         tc.arguments.clone(),
                         diff_preview,
                     );
@@ -695,6 +815,25 @@ impl AgentRuntime {
                         name,
                         &tc.arguments,
                     ),
+                    ResolvedToolTarget::BuiltinInternet { name, .. } => {
+                        let res = execute_builtin_internet_tool(
+                            &settings.internet,
+                            name,
+                            &tc.arguments,
+                            cancel.clone(),
+                        )
+                        .await;
+                        self.db.log_event(
+                            "security",
+                            if res.is_ok() { "info" } else { "warn" },
+                            &format!(
+                                "Internet Mode '{}' executed {} on {}",
+                                actor_name, name, resource_key
+                            ),
+                            res.as_ref().err().map(|e| e.to_string()).as_deref(),
+                        );
+                        res.map(|v| (v, vec![]))
+                    }
                 };
 
                 match exec_res {
@@ -717,7 +856,7 @@ impl AgentRuntime {
                                 "info",
                                 &format!(
                                     "Agent '{}' updated {} file(s) via {}",
-                                    ag.name,
+                                    actor_name,
                                     changed_paths.len(),
                                     tool_display_name
                                 ),
@@ -824,6 +963,7 @@ impl AgentRuntime {
             title: format!("Run: {}", ag.name),
             mode: "agent".into(),
             execution_mode: settings.agents.default_execution_mode,
+            internet_mode: ag.internet_access,
             active_provider_id: ag.provider_id.clone(),
             active_model: ag.model_id.clone(),
             active_agent_id: Some(ag.id.clone()),
@@ -1532,6 +1672,7 @@ mod tests {
             title: "Math Test".into(),
             mode: "agent".into(),
             execution_mode: "review".into(),
+            internet_mode: false,
             active_provider_id: Some("p1".into()),
             active_model: Some("mock-model".into()),
             active_agent_id: Some("ag-1".into()),
@@ -1632,6 +1773,7 @@ mod tests {
             title: "Stale chat".into(),
             mode: "direct".into(),
             execution_mode: "review".into(),
+            internet_mode: false,
             active_provider_id: Some("dbbfcd79-119d-4880-a26a-2e02bfc6bf59".into()),
             active_model: Some("deleted-model".into()),
             active_agent_id: None,
@@ -1789,6 +1931,7 @@ mod tests {
             title: "Review Run".into(),
             mode: "agent".into(),
             execution_mode: "review".into(),
+            internet_mode: false,
             active_provider_id: Some("p1".into()),
             active_model: Some("m1".into()),
             active_agent_id: None, // tests fallback to tpl-coding
@@ -1845,6 +1988,7 @@ mod tests {
             title: "Turbo Run".into(),
             mode: "agent".into(),
             execution_mode: "turbo".into(),
+            internet_mode: false,
             active_provider_id: Some("p1".into()),
             active_model: Some("m1".into()),
             active_agent_id: None,
@@ -1879,5 +2023,162 @@ mod tests {
             std::fs::read_to_string(proj_dir.join("src/turbo.txt")).unwrap(),
             "auto written"
         );
+    }
+
+    #[tokio::test]
+    async fn internet_mode_direct_chat_requires_approval_and_runs_port_scan() {
+        let dir = TempDir::new().unwrap();
+
+        // Real TCP listener to scan
+        let target_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let target_port = target_listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            use tokio::io::AsyncWriteExt;
+            if let Ok((mut sock, _)) = target_listener.accept().await {
+                let _ = sock.write_all(b"NOCTRA-TEST-BANNER\r\n").await;
+            }
+        });
+
+        let step_counter = Arc::new(AtomicUsize::new(0));
+        let sc = step_counter.clone();
+        let ai_app = Router::new().route(
+            "/v1/chat/completions",
+            post(move |Json(body): Json<serde_json::Value>| {
+                let c = sc.clone();
+                async move {
+                    let s = c.fetch_add(1, Ordering::SeqCst);
+                    if s == 0 {
+                        let tools = body["tools"].as_array().expect("internet tools should be attached");
+                        assert!(tools.iter().any(|t| t["function"]["name"] == "net_port_scan"));
+                        assert!(tools.iter().any(|t| t["function"]["name"] == "net_http_security_check"));
+                        Json(serde_json::json!({
+                            "choices": [{
+                                "message": {
+                                    "role": "assistant",
+                                    "content": "",
+                                    "tool_calls": [{
+                                        "id": "call_scan_1",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "net_port_scan",
+                                            "arguments": format!("{{\"target\":\"127.0.0.1\",\"ports\":\"{target_port}\",\"timeout_ms\":500}}")
+                                        }
+                                    }]
+                                },
+                                "finish_reason": "tool_calls"
+                            }]
+                        }))
+                    } else {
+                        let last = body["messages"].as_array().unwrap().last().unwrap();
+                        assert_eq!(last["role"], "tool");
+                        let content = last["content"].as_str().unwrap_or("");
+                        assert!(content.contains("NOCTRA-TEST-BANNER"));
+                        Json(serde_json::json!({
+                            "choices": [{
+                                "message": {
+                                    "role": "assistant",
+                                    "content": format!("Port {target_port} is open with banner NOCTRA-TEST-BANNER.")
+                                },
+                                "finish_reason": "stop"
+                            }]
+                        }))
+                    }
+                }
+            }),
+        );
+        let ai_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let ai_addr = ai_listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(ai_listener, ai_app).await.unwrap();
+        });
+
+        let redactor = Arc::new(SecretRedactor::new());
+        let db = Arc::new(Database::open_in_memory(dir.path().to_path_buf(), redactor.clone()).unwrap());
+        let creds = Arc::new(CredentialStore::new_in_memory(redactor.clone()));
+        let mcp = Arc::new(McpHubManager::new(db.clone(), creds.clone(), redactor.clone()));
+        let perms = Arc::new(PermissionManager::new(db.clone()));
+        let runtime = Arc::new(AgentRuntime::new(
+            db.clone(),
+            creds,
+            redactor,
+            mcp,
+            perms.clone(),
+        ));
+
+        let mut settings = db.get_settings().unwrap();
+        settings.internet.allow_private_targets = true;
+        db.save_settings(&settings).unwrap();
+
+        let now = Utc::now().to_rfc3339();
+        db.upsert_provider(&AiProvider {
+            id: "p1".into(),
+            name: "Mock".into(),
+            base_url: format!("http://{ai_addr}/v1"),
+            model_id: "m1".into(),
+            custom_headers: HashMap::new(),
+            temperature: 0.1,
+            top_p: 1.0,
+            max_tokens: 512,
+            timeout_secs: 15,
+            streaming: false,
+            default_system_prompt: String::new(),
+            has_api_key: false,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+        })
+        .unwrap();
+
+        // Direct mode conversation with internet_mode = true!
+        db.upsert_conversation(&Conversation {
+            id: "conv-net".into(),
+            title: "Port Scan Test".into(),
+            mode: "direct".into(),
+            execution_mode: "review".into(),
+            internet_mode: true,
+            active_provider_id: Some("p1".into()),
+            active_model: Some("m1".into()),
+            active_agent_id: None,
+            project_id: None,
+            system_prompt_override: None,
+            created_at: now.clone(),
+            updated_at: now,
+        })
+        .unwrap();
+
+        let approval_seen = Arc::new(AtomicUsize::new(0));
+        let seen_clone = approval_seen.clone();
+        let perms_c = perms.clone();
+        let msg = runtime
+            .execute_chat_turn(
+                "run-net".into(),
+                "conv-net".into(),
+                "Scan port on 127.0.0.1".into(),
+                vec![],
+                None,
+                None,
+                CancellationToken::new(),
+                |_| {},
+                move |req| {
+                    seen_clone.fetch_add(1, Ordering::SeqCst);
+                    assert_eq!(req.category, "internet_access");
+                    assert_eq!(req.affected_resources[0], "127.0.0.1");
+                    let p = perms_c.clone();
+                    tokio::spawn(async move {
+                        p.resolve_approval(
+                            &req.id,
+                            ApprovalDecision::AllowOnce,
+                            req.agent_id.as_deref(),
+                            &req.category,
+                            &req.affected_resources[0],
+                        )
+                        .unwrap();
+                    });
+                },
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(approval_seen.load(Ordering::SeqCst), 1);
+        assert!(msg.content.contains("NOCTRA-TEST-BANNER"));
     }
 }

@@ -10,6 +10,8 @@ pub struct AppSettings {
     pub agents: AgentDefaults,
     pub skills: SkillSettings,
     pub security: SecuritySettings,
+    #[serde(default)]
+    pub internet: InternetSettings,
     pub advanced: AdvancedSettings,
     pub shortcuts: HashMap<String, String>,
 }
@@ -88,6 +90,74 @@ pub struct SecuritySettings {
     pub sandbox_mode: bool,
 }
 
+fn default_max_ports_per_scan() -> u16 {
+    256
+}
+
+fn default_scan_timeout_ms() -> u64 {
+    1200
+}
+
+fn default_max_concurrency() -> usize {
+    32
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InternetSettings {
+    #[serde(default)]
+    pub default_enabled: bool,
+    #[serde(default)]
+    pub allow_private_targets: bool,
+    #[serde(default)]
+    pub allowed_domains: Vec<String>,
+    #[serde(default = "default_max_ports_per_scan")]
+    pub max_ports_per_scan: u16,
+    #[serde(default = "default_scan_timeout_ms")]
+    pub scan_timeout_ms: u64,
+    #[serde(default = "default_max_concurrency")]
+    pub max_concurrency: usize,
+    #[serde(default = "default_true")]
+    pub require_approval_for_scans: bool,
+}
+
+impl Default for InternetSettings {
+    fn default() -> Self {
+        Self {
+            default_enabled: false,
+            allow_private_targets: false,
+            allowed_domains: vec![],
+            max_ports_per_scan: default_max_ports_per_scan(),
+            scan_timeout_ms: default_scan_timeout_ms(),
+            max_concurrency: default_max_concurrency(),
+            require_approval_for_scans: true,
+        }
+    }
+}
+
+impl InternetSettings {
+    pub fn sanitized(&self) -> Self {
+        Self {
+            default_enabled: self.default_enabled,
+            allow_private_targets: self.allow_private_targets,
+            allowed_domains: self
+                .allowed_domains
+                .iter()
+                .map(|d| d.trim().to_ascii_lowercase())
+                .filter(|d| !d.is_empty())
+                .collect(),
+            max_ports_per_scan: self.max_ports_per_scan.clamp(1, 1024),
+            scan_timeout_ms: self.scan_timeout_ms.clamp(100, 10_000),
+            max_concurrency: self.max_concurrency.clamp(1, 128),
+            require_approval_for_scans: self.require_approval_for_scans,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AdvancedSettings {
@@ -153,6 +223,7 @@ impl Default for AppSettings {
                 redact_logs: true,
                 sandbox_mode: true,
             },
+            internet: InternetSettings::default(),
             advanced: AdvancedSettings {
                 developer_mode: false,
                 log_retention_days: 14,
@@ -209,6 +280,8 @@ pub struct Conversation {
     pub mode: String, // "direct" | "agent"
     #[serde(default = "default_execution_mode")]
     pub execution_mode: String, // "review" | "turbo"
+    #[serde(default)]
+    pub internet_mode: bool,
     pub active_provider_id: Option<String>,
     pub active_model: Option<String>,
     pub active_agent_id: Option<String>,

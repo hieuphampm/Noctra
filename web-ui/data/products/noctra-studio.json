@@ -54,6 +54,10 @@
     {
       "title": "Permission-Controlled Execution",
       "description": "Enforce Ask Every Time, Session, Always Allow, or Deny policies with interactive approval modals showing exact tool arguments and target paths."
+    },
+    {
+      "title": "Internet Mode & Security Scanner",
+      "description": "Opt-in per-conversation Internet Mode with built-in Rust TCP port scanning, service banner grabbing, DNS lookup, HTTP/HTTPS security header audits, and SSRF/allowlist guardrails."
     }
   ],
   "subsystems": [
@@ -81,6 +85,11 @@
       "name": "Workflow Engine",
       "module": "src-tauri/src/workflows/",
       "summary": "Live DAG executor with human-in-the-loop Approval gates, live timeline inspection, and persisted run history."
+    },
+    {
+      "name": "Internet Mode & Security Diagnostics",
+      "module": "src-tauri/src/internet/",
+      "summary": "Native async Rust TCP port scanner, DNS resolver, HTTP/HTTPS security header auditor, and safe URL fetcher with Review Mode approval gates and private-IP SSRF protection."
     }
   ],
   "securityModel": [

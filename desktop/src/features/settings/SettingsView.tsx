@@ -2,6 +2,7 @@ import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Download,
+  Globe,
   Lock,
   Plus,
   Settings,
@@ -10,11 +11,13 @@ import {
   Upload,
 } from "lucide-react";
 import { api, isTauriRuntime } from "@/services/tauri";
+import { useAppStore } from "@/stores/appStore";
 import type { AppSettings, ExecutionMode, PermissionRule } from "@/types/noctra";
 import { normalizeLanguage, useI18n } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { Card, Select, Switch } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ExecutionModeToggle } from "@/components/workspace/ExecutionModeToggle";
 
@@ -62,6 +65,15 @@ const FALLBACK_SETTINGS: AppSettings = {
     redactLogs: true,
     sandboxMode: true,
   },
+  internet: {
+    defaultEnabled: false,
+    allowPrivateTargets: false,
+    allowedDomains: [],
+    maxPortsPerScan: 256,
+    scanTimeoutMs: 1200,
+    maxConcurrency: 32,
+    requireApprovalForScans: true,
+  },
   advanced: {
     developerMode: false,
     logRetentionDays: 30,
@@ -103,9 +115,10 @@ export function SettingsView() {
     ...FALLBACK_SETTINGS,
     general: { ...FALLBACK_SETTINGS.general, language },
   }));
-  const [section, setSection] = React.useState<
-    "general" | "ai" | "mcp" | "agents" | "skills" | "security" | "advanced"
-  >("general");
+  const section = useAppStore((s) => s.settingsSection);
+  const setSection = useAppStore((s) => s.setSettingsSection);
+  const setPreferredInternetMode = useAppStore((s) => s.setPreferredInternetMode);
+  const [allowedDomainsText, setAllowedDomainsText] = React.useState("");
   const [newRuleCat, setNewRuleCat] = React.useState("mcp_tools");
   const [newRulePat, setNewRulePat] = React.useState("*");
   const [newRuleMode, setNewRuleMode] = React.useState<PermissionRule["mode"]>("ask");
@@ -113,7 +126,16 @@ export function SettingsView() {
 
   React.useEffect(() => {
     if (settings) {
-      setDraft(settings);
+      const merged: AppSettings = {
+        ...FALLBACK_SETTINGS,
+        ...settings,
+        internet: {
+          ...FALLBACK_SETTINGS.internet,
+          ...(settings.internet ?? {}),
+        },
+      };
+      setDraft(merged);
+      setAllowedDomainsText((merged.internet.allowedDomains ?? []).join("\n"));
       setLanguage(normalizeLanguage(settings.general.language));
     }
   }, [settings, setLanguage]);
@@ -134,9 +156,25 @@ export function SettingsView() {
   };
 
   const save = async () => {
-    setLanguage(normalizeLanguage(draft.general.language));
+    const cleanedDomains = allowedDomainsText
+      .split(/\r?\n/)
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    const nextDraft: AppSettings = {
+      ...draft,
+      internet: {
+        ...draft.internet,
+        allowedDomains: cleanedDomains,
+        maxPortsPerScan: Math.max(1, Math.min(1024, Number(draft.internet.maxPortsPerScan) || 256)),
+        scanTimeoutMs: Math.max(100, Math.min(10000, Number(draft.internet.scanTimeoutMs) || 1200)),
+        maxConcurrency: Math.max(1, Math.min(128, Number(draft.internet.maxConcurrency) || 32)),
+      },
+    };
+    setDraft(nextDraft);
+    setLanguage(normalizeLanguage(nextDraft.general.language));
+    setPreferredInternetMode(nextDraft.internet.defaultEnabled);
     if (isTauriRuntime()) {
-      await api.saveSettings(draft);
+      await api.saveSettings(nextDraft);
       await qc.invalidateQueries({ queryKey: ["settings"] });
     }
     setStatusMsg(t("settings.saved"));
@@ -178,6 +216,7 @@ export function SettingsView() {
             ["mcp", t("settings.cat.mcp")],
             ["agents", t("settings.cat.agents")],
             ["skills", t("settings.cat.skills")],
+            ["internet", t("settings.cat.internet")],
             ["security", t("settings.cat.security")],
             ["advanced", t("settings.cat.advanced")],
           ] as const
@@ -464,6 +503,159 @@ export function SettingsView() {
                     })
                   }
                 />
+              </div>
+            </Card>
+          )}
+
+          {section === "internet" && (
+            <Card className="p-5 space-y-4">
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-[#67DDF2]" />
+                <h2 className="text-sm font-semibold">{t("settings.internet.heading")}</h2>
+              </div>
+              <p className="text-xs text-[#9399AA] leading-relaxed">
+                {t("settings.internet.subtitle")}
+              </p>
+
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-[#252B3A] bg-[#090B10] px-3.5 py-2.5">
+                  <div>
+                    <div className="text-xs font-medium">
+                      {t("settings.internet.defaultEnabled")}
+                    </div>
+                    <div className="text-[11px] text-[#9399AA]">
+                      {t("settings.internet.defaultEnabledHint")}
+                    </div>
+                  </div>
+                  <Switch
+                    checked={draft.internet.defaultEnabled}
+                    onCheckedChange={(v) =>
+                      setDraft({
+                        ...draft,
+                        internet: { ...draft.internet, defaultEnabled: v },
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-[#252B3A] bg-[#090B10] px-3.5 py-2.5">
+                  <div>
+                    <div className="text-xs font-medium">
+                      {t("settings.internet.requireApproval")}
+                    </div>
+                    <div className="text-[11px] text-[#9399AA]">
+                      {t("settings.internet.requireApprovalHint")}
+                    </div>
+                  </div>
+                  <Switch
+                    checked={draft.internet.requireApprovalForScans}
+                    onCheckedChange={(v) =>
+                      setDraft({
+                        ...draft,
+                        internet: { ...draft.internet, requireApprovalForScans: v },
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-[#252B3A] bg-[#090B10] px-3.5 py-2.5">
+                  <div>
+                    <div className="text-xs font-medium">
+                      {t("settings.internet.allowPrivate")}
+                    </div>
+                    <div className="text-[11px] text-[#9399AA]">
+                      {t("settings.internet.allowPrivateHint")}
+                    </div>
+                  </div>
+                  <Switch
+                    checked={draft.internet.allowPrivateTargets}
+                    onCheckedChange={(v) =>
+                      setDraft({
+                        ...draft,
+                        internet: { ...draft.internet, allowPrivateTargets: v },
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                <div>
+                  <label className="block text-[11px] text-[#9399AA] mb-1">
+                    {t("settings.internet.maxPorts")}
+                  </label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="1024"
+                    value={draft.internet.maxPortsPerScan}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        internet: {
+                          ...draft.internet,
+                          maxPortsPerScan: Number(e.target.value),
+                        },
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-[#9399AA] mb-1">
+                    {t("settings.internet.timeoutMs")}
+                  </label>
+                  <Input
+                    type="number"
+                    min="100"
+                    max="10000"
+                    value={draft.internet.scanTimeoutMs}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        internet: {
+                          ...draft.internet,
+                          scanTimeoutMs: Number(e.target.value),
+                        },
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-[#9399AA] mb-1">
+                    {t("settings.internet.maxConcurrency")}
+                  </label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="128"
+                    value={draft.internet.maxConcurrency}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        internet: {
+                          ...draft.internet,
+                          maxConcurrency: Number(e.target.value),
+                        },
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-[#9399AA] mb-1">
+                  {t("settings.internet.allowedDomains")}
+                </label>
+                <Textarea
+                  rows={3}
+                  className="font-mono"
+                  placeholder={"example.com\n*.mycompany.com"}
+                  value={allowedDomainsText}
+                  onChange={(e) => setAllowedDomainsText(e.target.value)}
+                />
+                <p className="mt-1 text-[10px] text-[#9399AA]">
+                  {t("settings.internet.allowedDomainsHint")}
+                </p>
               </div>
             </Card>
           )}

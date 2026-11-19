@@ -10,6 +10,7 @@ import {
   FolderOpen,
   FolderPlus,
   GitBranch,
+  Globe,
   MessageSquare,
   MessageSquarePlus,
   PanelRightClose,
@@ -111,7 +112,17 @@ export function AppShell() {
         .getState()
         .setPreferredExecutionMode(appSettings.agents.defaultExecutionMode);
     }
-  }, [appSettings?.general?.language, appSettings?.agents?.defaultExecutionMode, setLanguage]);
+    if (typeof appSettings?.internet?.defaultEnabled === "boolean") {
+      useAppStore
+        .getState()
+        .setPreferredInternetMode(appSettings.internet.defaultEnabled);
+    }
+  }, [
+    appSettings?.general?.language,
+    appSettings?.agents?.defaultExecutionMode,
+    appSettings?.internet?.defaultEnabled,
+    setLanguage,
+  ]);
 
   // Subscribe to backend streaming, approval requests & workflow updates
   React.useEffect(() => {
@@ -177,6 +188,7 @@ export function AppShell() {
       title: "New Conversation",
       mode: "direct",
       executionMode: useAppStore.getState().preferredExecutionMode,
+      internetMode: useAppStore.getState().preferredInternetMode,
       providerId: providers[0]?.id ?? null,
       model: providers[0]?.modelId ?? null,
     });
@@ -244,9 +256,12 @@ export function AppShell() {
   const activeConv = conversations.find((c) => c.id === activeConvId);
   const activeProjectId = useAppStore((s) => s.activeProjectId);
   const preferredExecutionMode = useAppStore((s) => s.preferredExecutionMode);
+  const preferredInternetMode = useAppStore((s) => s.preferredInternetMode);
+  const setSettingsSection = useAppStore((s) => s.setSettingsSection);
   const activeProject =
     projects.find((p) => p.id === (activeConv?.projectId ?? activeProjectId)) ?? null;
   const activeExecMode = activeConv?.executionMode ?? preferredExecutionMode;
+  const activeInternetMode = activeConv?.internetMode ?? preferredInternetMode;
   const activeProvider =
     providers.find((p) => p.id === activeConv?.activeProviderId) ?? providers[0];
   const activeAgent = agents.find((a) => a.id === activeConv?.activeAgentId);
@@ -576,6 +591,12 @@ export function AppShell() {
                     {activeExecMode === "turbo" ? t("mode.turbo") : t("mode.review")}
                   </Badge>
                 </div>
+                <div className="flex items-center justify-between text-[11px] text-[#9399AA]">
+                  <span>{t("internet.inspectorLabel")}:</span>
+                  <Badge variant={activeInternetMode ? "cyan" : "default"}>
+                    {activeInternetMode ? t("internet.on") : t("internet.off")}
+                  </Badge>
+                </div>
                 {activeProject && (
                   <div className="text-[11px] text-[#9399AA] pt-1 border-t border-[#252B3A]">
                     <div className="text-[10px] uppercase tracking-wider">Active Project</div>
@@ -645,6 +666,20 @@ export function AppShell() {
           >
             {activeExecMode === "turbo" ? t("mode.turbo") : t("mode.review")}
           </span>
+
+          {activeInternetMode && (
+            <button
+              onClick={() => {
+                setSettingsSection("internet");
+                setActiveSection("settings");
+              }}
+              className="flex shrink-0 items-center gap-1 rounded bg-[#67DDF2]/15 px-1.5 py-0.5 text-[10px] font-medium text-[#67DDF2] hover:bg-[#67DDF2]/25 cursor-pointer"
+              title={t("internet.bannerConfigure")}
+            >
+              <Globe className="h-3 w-3" />
+              <span>{t("internet.on")}</span>
+            </button>
+          )}
 
           <button
             onClick={() => setActiveSection("mcp")}

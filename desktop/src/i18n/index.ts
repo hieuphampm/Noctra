@@ -99,6 +99,7 @@ const en = {
   "settings.cat.mcp": "MCP Runtime",
   "settings.cat.agents": "Agent Limits",
   "settings.cat.skills": "Skills & GitHub",
+  "settings.cat.internet": "Internet Mode",
   "settings.cat.security": "Permissions & Privacy",
   "settings.cat.advanced": "Advanced & Shortcuts",
   "settings.general.heading": "General Preferences",
@@ -139,6 +140,24 @@ const en = {
   "settings.security.always": "Always allow",
   "settings.security.deny": "Deny",
   "settings.security.addRule": "Add Rule",
+  "settings.internet.heading": "Internet Mode & Security Scanner",
+  "settings.internet.subtitle":
+    "Configure guardrails for built-in TCP port scanning, DNS lookup, HTTP/HTTPS security header audits, and web fetches. Only scan domains you own or are authorized to test.",
+  "settings.internet.defaultEnabled": "Enable Internet Mode by default for new chats",
+  "settings.internet.defaultEnabledHint":
+    "Keep disabled unless you want network/security tools enabled automatically in every new conversation.",
+  "settings.internet.requireApproval": "Require approval before network scans (Review Mode)",
+  "settings.internet.requireApprovalHint":
+    "Shows target host, ports, and payload in an approval popup before probing.",
+  "settings.internet.allowPrivate": "Allow scanning private / localhost / LAN IPs",
+  "settings.internet.allowPrivateHint":
+    "Disabled by default to prevent accidental SSRF or probing of 127.0.0.1, RFC1918, and cloud metadata IPs.",
+  "settings.internet.maxPorts": "Max Ports per Scan (1–1024)",
+  "settings.internet.timeoutMs": "Per-Port Timeout (ms)",
+  "settings.internet.maxConcurrency": "Max Concurrent Probes",
+  "settings.internet.allowedDomains": "Target Domain Allowlist (optional, one per line)",
+  "settings.internet.allowedDomainsHint":
+    "Leave empty to allow any public domain (subject to approval). Supports exact domains or wildcards like *.example.com.",
   "settings.advanced.heading": "Keyboard Shortcuts & Diagnostics",
   "settings.advanced.devMode": "Developer Mode",
 
@@ -250,6 +269,17 @@ const en = {
   "mode.reviewHint": "Ask user with diff preview before editing or running tools",
   "mode.turbo": "Turbo",
   "mode.turboHint": "Full auto execution inside the project sandbox without prompts",
+  "internet.label": "Internet",
+  "internet.on": "Internet: On",
+  "internet.off": "Internet: Off",
+  "internet.toggleHint":
+    "Enable built-in TCP Port Scanner, DNS Lookup, HTTP Security Audit, and Web Fetch tools for this chat",
+  "internet.bannerActive":
+    "Internet Mode active — built-in security tools ready: TCP Port Scan, DNS Lookup, HTTP/HTTPS Header Audit, Web Fetch.",
+  "internet.bannerConfigure": "Configure Guardrails",
+  "internet.inspectorLabel": "Internet Mode",
+  "internet.approvalWarning":
+    "Network security probe — verify that you own or have explicit authorization to scan this domain or host.",
   "approval.diffPreview": "Proposed File Changes (Diff)",
   "marketplace.title": "Ecosystem Marketplace",
   "marketplace.mcp": "MCP Servers",
@@ -354,6 +384,7 @@ const vi: Record<I18nKey, string> = {
   "settings.cat.mcp": "Vận hành MCP",
   "settings.cat.agents": "Giới hạn Agent",
   "settings.cat.skills": "Kỹ năng & GitHub",
+  "settings.cat.internet": "Chế độ Internet",
   "settings.cat.security": "Quyền & Quyền riêng tư",
   "settings.cat.advanced": "Nâng cao & Phím tắt",
   "settings.general.heading": "Tùy chọn chung",
@@ -394,6 +425,24 @@ const vi: Record<I18nKey, string> = {
   "settings.security.always": "Luôn cho phép",
   "settings.security.deny": "Từ chối",
   "settings.security.addRule": "Thêm quy tắc",
+  "settings.internet.heading": "Chế độ Internet & Quét bảo mật",
+  "settings.internet.subtitle":
+    "Thiết lập giới hạn an toàn cho công cụ quét port TCP, tra cứu DNS, kiểm tra HTTP/HTTPS Security Headers và đọc URL. Chỉ quét các domain bạn sở hữu hoặc được phép kiểm thử.",
+  "settings.internet.defaultEnabled": "Tự động bật Internet Mode cho hội thoại mới",
+  "settings.internet.defaultEnabledHint":
+    "Nên tắt mặc định và bật thủ công trên thanh Chat khi cần quét bảo mật hoặc truy cập Internet.",
+  "settings.internet.requireApproval": "Hỏi phê duyệt trước khi quét mạng (Review Mode)",
+  "settings.internet.requireApprovalHint":
+    "Hiển thị domain đích, danh sách port và tham số trong hộp thoại phê duyệt trước khi chạy.",
+  "settings.internet.allowPrivate": "Cho phép quét IP nội bộ / localhost / LAN",
+  "settings.internet.allowPrivateHint":
+    "Tắt mặc định để tránh SSRF hoặc quét nhầm 127.0.0.1, mạng nội bộ RFC1918 và cloud metadata.",
+  "settings.internet.maxPorts": "Số port tối đa mỗi lần quét (1–1024)",
+  "settings.internet.timeoutMs": "Thời gian chờ mỗi port (ms)",
+  "settings.internet.maxConcurrency": "Số kết nối đồng thời tối đa",
+  "settings.internet.allowedDomains": "Danh sách domain được phép (tùy chọn, mỗi dòng 1 domain)",
+  "settings.internet.allowedDomainsHint":
+    "Để trống để cho phép mọi domain công khai (vẫn qua bước phê duyệt). Hỗ trợ wildcard như *.example.com.",
   "settings.advanced.heading": "Phím tắt & Chẩn đoán",
   "settings.advanced.devMode": "Chế độ nhà phát triển",
 
@@ -505,6 +554,17 @@ const vi: Record<I18nKey, string> = {
   "mode.reviewHint": "Hỏi xác nhận và xem Diff trước khi sửa tệp hoặc chạy công cụ",
   "mode.turbo": "Turbo",
   "mode.turboHint": "Tự động hoàn toàn trong phạm vi thư mục dự án, không hỏi lại",
+  "internet.label": "Internet",
+  "internet.on": "Internet: Bật",
+  "internet.off": "Internet: Tắt",
+  "internet.toggleHint":
+    "Bật bộ công cụ tích hợp: Quét Port TCP, Tra cứu DNS, Kiểm tra HTTP Security Headers và Đọc URL cho cuộc trò chuyện này",
+  "internet.bannerActive":
+    "Chế độ Internet đang bật — sẵn sàng các công cụ: Quét Port TCP, Tra cứu DNS, Kiểm tra HTTP/HTTPS Security Headers, Đọc URL.",
+  "internet.bannerConfigure": "Cấu hình giới hạn",
+  "internet.inspectorLabel": "Chế độ Internet",
+  "internet.approvalWarning":
+    "Thao tác quét / kiểm tra mạng — hãy xác nhận bạn sở hữu hoặc được cấp phép kiểm thử bảo mật domain/host này.",
   "approval.diffPreview": "Xem trước thay đổi (Diff)",
   "marketplace.title": "Chợ hệ sinh thái",
   "marketplace.mcp": "Máy chủ MCP",

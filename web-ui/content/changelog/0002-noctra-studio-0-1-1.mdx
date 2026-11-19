@@ -1,0 +1,19 @@
+---
+version: "v0.1.1-pre"
+releaseDate: "2026-11-19"
+product: "NOCTRA STUDIO"
+isSampleData: false
+summary: "Added opt-in Internet Mode with built-in Rust TCP port scanning, DNS lookup, HTTP/HTTPS security header auditing, web fetch, Security Auditor agent template, and Review Mode approval guardrails."
+added:
+  - "Per-conversation Internet Mode toggle in the Chat toolbar (supported in both Direct Chat and Agent Mode) with Inspector and Status Bar indicators."
+  - "Built-in async Rust security & network toolkit: net_port_scan (presets & custom ranges + banner grabbing + risk classification), net_dns_lookup, net_http_security_check (HSTS/CSP/cookie/redirect grading), and net_fetch_url."
+  - "Settings -> Internet Mode guardrails: default toggle, Review Mode scan approval requirement, private/LAN/localhost IP blocking (SSRF protection), max ports, timeout, concurrency, and optional domain allowlist."
+  - "Pre-seeded Security Auditor agent template (tpl-security) with Internet Access enabled."
+improvements:
+  - "Enforced agent internet_access permission filtering for MCP tools requiring internet_access."
+  - "Extended permission rule pattern matching to support wildcard domains (e.g. *.example.com) and added dedicated network-scan authorization notice in ApprovalModal."
+bugFixes: []
+breakingChanges: []
+---
+
+NOCTRA STUDIO `v0.1.1-pre` introduces **Internet Mode** (disabled by default to preserve NOCTRA's privacy-first posture) so users can perform authorized domain port scanning and HTTP/HTTPS security audits directly inside NOCTRA STUDIO with full human-in-the-loop approval and local audit logging.

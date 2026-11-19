@@ -71,6 +71,7 @@ export const api = {
     title?: string;
     mode?: "direct" | "agent";
     executionMode?: ExecutionMode;
+    internetMode?: boolean;
     providerId?: string | null;
     model?: string | null;
     agentId?: string | null;

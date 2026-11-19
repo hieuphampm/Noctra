@@ -2,6 +2,7 @@ pub mod agents;
 pub mod ai;
 pub mod commands;
 pub mod error;
+pub mod internet;
 pub mod marketplace;
 pub mod mcp;
 pub mod permissions;

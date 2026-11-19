@@ -54,6 +54,7 @@ export interface AppSettings {
     redactLogs: boolean;
     sandboxMode: boolean;
   };
+  internet: InternetSettings;
   advanced: {
     developerMode: boolean;
     logRetentionDays: number;
@@ -61,6 +62,16 @@ export interface AppSettings {
     experimentalFeatures: boolean;
   };
   shortcuts: Record<string, string>;
+}
+
+export interface InternetSettings {
+  defaultEnabled: boolean;
+  allowPrivateTargets: boolean;
+  allowedDomains: string[];
+  maxPortsPerScan: number;
+  scanTimeoutMs: number;
+  maxConcurrency: number;
+  requireApprovalForScans: boolean;
 }
 
 export interface AiProvider {
@@ -111,6 +122,7 @@ export interface Conversation {
   title: string;
   mode: "direct" | "agent";
   executionMode: ExecutionMode;
+  internetMode: boolean;
   activeProviderId: string | null;
   activeModel: string | null;
   activeAgentId: string | null;

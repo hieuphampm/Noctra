@@ -39,6 +39,7 @@ pub fn run_migrations(conn: &Connection) -> AppResult<()> {
             title TEXT NOT NULL,
             mode TEXT NOT NULL,
             execution_mode TEXT NOT NULL DEFAULT 'review',
+            internet_mode INTEGER NOT NULL DEFAULT 0,
             active_provider_id TEXT,
             active_model TEXT,
             active_agent_id TEXT,
@@ -270,6 +271,54 @@ pub fn run_migrations(conn: &Connection) -> AppResult<()> {
         "TEXT NOT NULL DEFAULT 'review'",
     )?;
 
+    ensure_column_exists(
+        conn,
+        "conversations",
+        "internet_mode",
+        "INTEGER NOT NULL DEFAULT 0",
+    )?;
+
+    seed_security_auditor_template(conn)?;
+
+    Ok(())
+}
+
+fn seed_security_auditor_template(conn: &Connection) -> AppResult<()> {
+    let now = Utc::now().to_rfc3339();
+    let default_mem = serde_json::json!({
+        "conversationMemory": true,
+        "agentLocalMemory": true,
+        "projectMemory": true,
+        "retentionMessages": 30
+    })
+    .to_string();
+
+    conn.execute(
+        r#"INSERT OR IGNORE INTO agents (
+            id, name, description, avatar, role, personality, system_instructions,
+            provider_id, model_id, temperature, max_tokens, context_window,
+            assigned_mcp_server_ids_json, enabled_tool_ids_json, assigned_skill_ids_json,
+            file_access_mode, allowed_directories_json, internet_access, external_api_access,
+            autonomous_execution, require_approval_sensitive, max_steps, max_tool_calls,
+            max_runtime_secs, retry_policy, error_strategy, memory_config_json, is_template,
+            created_at, updated_at
+        ) VALUES (
+            'tpl-security',
+            'Security Auditor',
+            'Audits authorized domains for open TCP ports, service banners, DNS records, and HTTP/HTTPS security headers.',
+            'shield',
+            'Application Security Analyst',
+            'Methodical, defensive, evidence-driven',
+            'You are a defensive Security Auditor. Only inspect domains and hosts the user owns or is explicitly authorized to test. Use net_dns_lookup, net_port_scan, net_http_security_check, and net_fetch_url to gather factual evidence, categorize risk severity (Critical/High/Medium/Low/Info), and provide actionable hardening recommendations.',
+            NULL, NULL, 0.2, 4096, 32768,
+            '[]', '[]', '[]',
+            'none', '[]', 1, 1,
+            0, 1, 12, 24,
+            180, 'once', 'stop', ?1, 1,
+            ?2, ?2
+        )"#,
+        rusqlite::params![default_mem, now],
+    )?;
     Ok(())
 }
 

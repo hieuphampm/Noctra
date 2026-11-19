@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { act, render, screen, fireEvent } from "@testing-library/react";
 import App from "@/App";
 import { useAppStore } from "@/stores/appStore";
 import { ApprovalModal } from "@/components/ApprovalModal";
@@ -14,6 +14,8 @@ describe("NOCTRA STUDIO UI & Store", () => {
       activeConversationId: null,
       activeProjectId: null,
       preferredExecutionMode: "review",
+      preferredInternetMode: false,
+      settingsSection: "general",
       approvalQueue: [],
       commandPaletteOpen: false,
       inspectorVisible: true,
@@ -160,5 +162,45 @@ describe("NOCTRA STUDIO UI & Store", () => {
     fireEvent.change(screen.getByLabelText("Ngôn ngữ"), { target: { value: "en" } });
     expect(screen.getByText("General Preferences")).toBeInTheDocument();
     expect(screen.getByText("Conversations")).toBeInTheDocument();
+  });
+
+  it("toggles Internet Mode in Chat, navigates to Internet Mode settings, and shows scan warning in ApprovalModal", () => {
+    render(<App />);
+
+    const internetToggle = screen.getByRole("switch", { name: "Internet" });
+    expect(internetToggle).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(internetToggle);
+    expect(useAppStore.getState().preferredInternetMode).toBe(true);
+    expect(internetToggle).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.getByText(/Internet Mode active — built-in security tools ready/i)
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Configure Guardrails" }));
+    expect(screen.getByText("Internet Mode & Security Scanner")).toBeInTheDocument();
+    expect(screen.getByText(/Target Domain Allowlist/i)).toBeInTheDocument();
+
+    act(() => {
+      useAppStore.getState().pushApprovalRequest({
+        id: "req-net-1",
+        agentId: null,
+        agentName: "Internet Mode",
+        category: "internet_access",
+        actionSummary: "TCP Port Scan on 'example.com' (ports: common)",
+        reason: "Internet Mode requested 'net_port_scan' via Internet Mode (Review Mode).",
+        toolName: "net_port_scan",
+        affectedResources: ["example.com"],
+        exactPayload: { target: "example.com", ports: "common" },
+        createdAt: new Date().toISOString(),
+      });
+    });
+
+    expect(
+      screen.getByText(/Network security probe — verify that you own or have explicit authorization/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("TCP Port Scan on 'example.com' (ports: common)")
+    ).toBeInTheDocument();
   });
 });
