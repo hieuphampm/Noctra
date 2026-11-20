@@ -10,9 +10,11 @@ added:
   - "Quick SSH modal and per-conversation SSH server selector directly in the Chat toolbar with live connection status banner, Inspector panel, and Status Bar indicator."
   - "Built-in AI server automation tools: ssh_exec, ssh_read_file, ssh_write_file (safe base64 transfer), ssh_list_dir, and ssh_system_info — supporting hands-free Turbo auto execution or per-command Review Mode approval."
   - "Pre-seeded SSH Server Operator agent template (tpl-ssh-ops) tuned for remote Linux/Unix administration and troubleshooting."
+  - "AI Provider Template Popup (12 presets including OpenAI, Google Gemini, Anthropic Claude, OpenRouter, DeepSeek, Groq, xAI Grok, Mistral, Together AI, Ollama, LM Studio) and Active Provider Picker Popup when adding or switching providers across Direct Chat and Agent Mode."
 improvements:
   - "Automatic SecretRedactor scrubbing for all SSH passwords and command outputs; SSH credentials are strictly excluded from portable backups and purged on local data wipe."
   - "Added dedicated remote SSH operation warning banner in ApprovalModal for ssh_exec and ssh_write_file actions."
+  - "Flexible SSH host endpoint parser automatically splits user@host:port or host:port strings pasted into the Host field."
 bugFixes: []
 breakingChanges: []
 ---

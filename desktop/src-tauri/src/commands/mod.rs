@@ -21,7 +21,8 @@ use crate::skills::{
     ParsedSkillMd,
 };
 use crate::ssh::{
-    ssh_passphrase_key, ssh_password_key, ssh_private_key_key, validate_ssh_target, SshManager,
+    parse_ssh_endpoint, ssh_passphrase_key, ssh_password_key, ssh_private_key_key,
+    validate_ssh_target, SshManager,
 };
 use crate::storage::models::*;
 use crate::storage::Database;
@@ -1192,11 +1193,13 @@ pub async fn save_ssh_server(
     state: State<'_, AppState>,
     input: SshServerInput,
 ) -> AppResult<SshServer> {
-    let port = if input.port == 0 { 22 } else { input.port };
-    validate_ssh_target(&input.host, port, &input.username)?;
+    let raw_port = if input.port == 0 { 22 } else { input.port };
+    let (resolved_user, host_trimmed, port) =
+        parse_ssh_endpoint(&input.host, raw_port, &input.username);
+    validate_ssh_target(&host_trimmed, port, &resolved_user)?;
 
     let name = if input.name.trim().is_empty() {
-        format!("{}@{}", input.username.trim(), input.host.trim())
+        format!("{}@{}", resolved_user, host_trimmed)
     } else {
         input.name.trim().to_string()
     };
@@ -1246,7 +1249,6 @@ pub async fn save_ssh_server(
         "password".to_string()
     };
 
-    let host_trimmed = input.host.trim().to_string();
     let keep_fingerprint = existing
         .as_ref()
         .filter(|e| e.host == host_trimmed && e.port == port)
@@ -1265,7 +1267,7 @@ pub async fn save_ssh_server(
         name,
         host: host_trimmed,
         port,
-        username: input.username.trim().to_string(),
+        username: resolved_user,
         auth_type,
         private_key_path,
         default_working_dir: input.default_working_dir.trim().to_string(),

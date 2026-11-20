@@ -56,6 +56,9 @@ export function ChatView() {
   const setPreferredExecutionMode = useAppStore((s) => s.setPreferredExecutionMode);
   const preferredInternetMode = useAppStore((s) => s.preferredInternetMode);
   const setPreferredInternetMode = useAppStore((s) => s.setPreferredInternetMode);
+  const preferredProviderId = useAppStore((s) => s.preferredProviderId);
+  const setPreferredProviderId = useAppStore((s) => s.setPreferredProviderId);
+  const openProviderPicker = useAppStore((s) => s.openProviderPicker);
   const setSettingsSection = useAppStore((s) => s.setSettingsSection);
   const workspaceSplitOpen = useAppStore((s) => s.workspaceSplitOpen);
   const setWorkspaceSplitOpen = useAppStore((s) => s.setWorkspaceSplitOpen);
@@ -114,7 +117,9 @@ export function ChatView() {
   }, [activeConv?.projectId, activeProjectId, setActiveProjectId]);
 
   const resolvedProvider =
-    providers.find((p) => p.id === activeConv?.activeProviderId) ?? providers[0];
+    providers.find((p) => p.id === activeConv?.activeProviderId) ??
+    providers.find((p) => p.id === preferredProviderId) ??
+    providers[0];
 
   const { data: messages = [] } = useQuery({
     queryKey: ["messages", activeConvId],
@@ -177,13 +182,15 @@ export function ChatView() {
           agents[0]?.id ??
           null
         : null);
+    const defaultProvider =
+      providers.find((p) => p.id === preferredProviderId) ?? providers[0] ?? null;
     const created = await api.createConversation({
       title: targetProject && activeProject ? `Project: ${activeProject.name}` : "New Conversation",
       mode: targetMode,
       executionMode: overrides?.executionMode ?? preferredExecutionMode,
       internetMode: overrides?.internetMode ?? preferredInternetMode,
-      providerId: providers[0]?.id ?? null,
-      model: providers[0]?.modelId ?? null,
+      providerId: defaultProvider?.id ?? null,
+      model: defaultProvider?.modelId ?? null,
       agentId: defaultAgent,
       projectId: targetProject,
       sshServerId: targetSsh,
@@ -251,14 +258,14 @@ export function ChatView() {
     try {
       let conv = await ensureConversation();
       const convProvider =
-        providers.find((p) => p.id === conv.activeProviderId) ?? providers[0] ?? null;
-      const isDirect = conv.mode !== "agent";
+        providers.find((p) => p.id === conv.activeProviderId) ??
+        providers.find((p) => p.id === preferredProviderId) ??
+        providers[0] ??
+        null;
       const hasValidConvProvider = Boolean(
         conv.activeProviderId && providers.some((p) => p.id === conv.activeProviderId)
       );
-      const effectiveProviderId = isDirect
-        ? (convProvider?.id ?? null)
-        : (hasValidConvProvider ? conv.activeProviderId : null);
+      const effectiveProviderId = convProvider?.id ?? null;
       const effectiveModel = hasValidConvProvider
         ? (conv.activeModel ?? convProvider?.modelId ?? null)
         : (convProvider?.modelId ?? null);
@@ -267,7 +274,7 @@ export function ChatView() {
       if (conv.title === "New Conversation" && text.length > 0) {
         convPatch.title = text.slice(0, 44) + (text.length > 44 ? "..." : "");
       }
-      if (isDirect && conv.activeProviderId !== effectiveProviderId) {
+      if (conv.activeProviderId !== effectiveProviderId) {
         convPatch.activeProviderId = effectiveProviderId;
         convPatch.activeModel = effectiveModel;
       }
@@ -454,7 +461,7 @@ export function ChatView() {
             </button>
           </div>
 
-          {activeConv?.mode === "agent" ? (
+          {activeConv?.mode === "agent" && (
             <Select
               value={activeConv.activeAgentId ?? ""}
               onChange={(val) => updateConvField({ activeAgentId: val || null })}
@@ -466,24 +473,39 @@ export function ChatView() {
                 </option>
               ))}
             </Select>
-          ) : (
-            <Select
-              value={resolvedProvider?.id ?? ""}
-              onChange={(val) => {
-                const prov = providers.find((p) => p.id === val);
-                updateConvField({
-                  activeProviderId: val || null,
-                  activeModel: prov?.modelId ?? null,
-                });
-              }}
+          )}
+
+          {/* Provider Selector (Always visible in both Direct and Agent Mode) */}
+          <Select
+            value={resolvedProvider?.id ?? ""}
+            onChange={(val) => {
+              const prov = providers.find((p) => p.id === val);
+              setPreferredProviderId(val || null);
+              updateConvField({
+                activeProviderId: val || null,
+                activeModel: prov?.modelId ?? null,
+              });
+            }}
+          >
+            <option value="">{t("chat.selectProvider")}</option>
+            {providers.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} — {p.modelId}
+              </option>
+            ))}
+          </Select>
+
+          {providers.length > 1 && (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => openProviderPicker(null)}
+              className="h-7 px-2 text-[11px]"
+              title={t("providers.pickerTitle")}
             >
-              <option value="">{t("chat.selectProvider")}</option>
-              {providers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — {p.modelId}
-                </option>
-              ))}
-            </Select>
+              {t("providers.switchBtn")}
+            </Button>
           )}
 
           {/* Project Selector + Quick Import Folder */}

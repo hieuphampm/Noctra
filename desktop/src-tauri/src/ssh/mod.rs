@@ -213,7 +213,9 @@ impl SshManager {
         runtime_password: Option<String>,
         trust_new_host_key: bool,
     ) -> AppResult<ActiveSshSession> {
-        validate_ssh_target(&server.host, server.port, &server.username)?;
+        let (parsed_user, clean_host, parsed_port) =
+            parse_ssh_endpoint(&server.host, server.port, &server.username);
+        validate_ssh_target(&clean_host, parsed_port, &parsed_user)?;
 
         let observed_fp = Arc::new(StdMutex::new(None));
         let fp_mismatch = Arc::new(StdMutex::new(None));
@@ -232,7 +234,7 @@ impl SshManager {
             ..Default::default()
         });
 
-        let addr = (server.host.as_str(), server.port);
+        let addr = (clean_host.as_str(), parsed_port);
         let connect_fut = client::connect(config, addr, handler);
         let mut handle = match tokio::time::timeout(
             Duration::from_secs(CONNECT_TIMEOUT_SECS),
@@ -247,15 +249,15 @@ impl SshManager {
                 }
                 return Err(AppError::Ssh(format!(
                     "Failed to connect to {}:{}: {}",
-                    server.host,
-                    server.port,
+                    clean_host,
+                    parsed_port,
                     self.redactor.redact(&e.to_string())
                 )));
             }
             Err(_) => {
                 return Err(AppError::Ssh(format!(
                     "Connection to {}:{} timed out after {}s",
-                    server.host, server.port, CONNECT_TIMEOUT_SECS
+                    clean_host, parsed_port, CONNECT_TIMEOUT_SECS
                 )));
             }
         };
@@ -295,7 +297,7 @@ impl SshManager {
 
             let res = handle
                 .authenticate_publickey(
-                    server.username.clone(),
+                    parsed_user.clone(),
                     PrivateKeyWithHashAlg::new(Arc::new(key_pair), rsa_hash),
                 )
                 .await
@@ -313,7 +315,7 @@ impl SshManager {
 
             // First try standard SSH 'password' authentication
             let pw_res = handle
-                .authenticate_password(server.username.clone(), password.clone())
+                .authenticate_password(parsed_user.clone(), password.clone())
                 .await
                 .map_err(|e| {
                     AppError::Ssh(format!(
@@ -326,7 +328,7 @@ impl SshManager {
                 true
             } else {
                 // Fallback to keyboard-interactive (common with PAM on Ubuntu/Debian/RHEL)
-                authenticate_with_keyboard_interactive(&mut handle, &server.username, &password)
+                authenticate_with_keyboard_interactive(&mut handle, &parsed_user, &password)
                     .await
                     .unwrap_or(false)
             }
@@ -338,7 +340,7 @@ impl SshManager {
                 .await;
             return Err(AppError::Ssh(format!(
                 "Authentication failed for {}@{}:{} (check username and password/key)",
-                server.username, server.host, server.port
+                parsed_user, clean_host, parsed_port
             )));
         }
 
@@ -930,6 +932,70 @@ pub fn shell_quote(value: &str) -> String {
     format!("'{escaped}'")
 }
 
+/// Parses flexible host inputs such as `ocany@14.225.250.92`, `ocany@14.225.250.92:2244`,
+/// `14.225.250.92:2244`, or `ssh://ocany@14.225.250.92:2244` into `(username, clean_host, port)`.
+pub fn parse_ssh_endpoint(raw_host: &str, fallback_port: u16, fallback_user: &str) -> (String, String, u16) {
+    let mut s = raw_host.trim();
+    if let Some(rest) = s.strip_prefix("ssh://") {
+        s = rest.trim();
+    } else if let Some(rest) = s.strip_prefix("ssh ") {
+        s = rest.trim();
+    }
+    // Strip trailing path if someone pasted a URL
+    if let Some((before_slash, _)) = s.split_once('/') {
+        s = before_slash.trim();
+    }
+
+    let mut resolved_user = fallback_user.trim().to_string();
+    let host_port = if let Some((u, rest)) = s.rsplit_once('@') {
+        let u_trim = u.trim();
+        if !u_trim.is_empty() && (resolved_user.is_empty() || resolved_user == "root" || resolved_user == u_trim) {
+            resolved_user = u_trim.to_string();
+        }
+        rest.trim()
+    } else {
+        s
+    };
+
+    let mut resolved_port = if fallback_port == 0 { 22 } else { fallback_port };
+    let clean_host = if host_port.starts_with('[') {
+        // IPv6 e.g. [::1]:2222
+        if let Some((ip_part, after_bracket)) = host_port.split_once(']') {
+            if let Some(p_str) = after_bracket.strip_prefix(':') {
+                if let Ok(p) = p_str.parse::<u16>() {
+                    if p > 0 {
+                        resolved_port = p;
+                    }
+                }
+            }
+            ip_part.trim_start_matches('[').to_string()
+        } else {
+            host_port.to_string()
+        }
+    } else if host_port.matches(':').count() == 1 {
+        if let Some((h, p_str)) = host_port.rsplit_once(':') {
+            if let Ok(p) = p_str.trim().parse::<u16>() {
+                if p > 0 {
+                    resolved_port = p;
+                }
+                h.trim().to_string()
+            } else {
+                host_port.to_string()
+            }
+        } else {
+            host_port.to_string()
+        }
+    } else {
+        host_port.to_string()
+    };
+
+    if resolved_user.is_empty() {
+        resolved_user = "root".to_string();
+    }
+
+    (resolved_user, clean_host, resolved_port)
+}
+
 pub fn validate_ssh_target(host: &str, port: u16, username: &str) -> AppResult<()> {
     let h = host.trim();
     if h.is_empty() {
@@ -1209,6 +1275,22 @@ mod tests {
         assert!(validate_ssh_target("bad host", 22, "root").is_err());
         assert!(validate_ssh_target("10.0.0.1", 0, "root").is_err());
         assert!(validate_ssh_target("10.0.0.1", 22, "").is_err());
+    }
+
+    #[test]
+    fn parses_flexible_ssh_endpoints() {
+        assert_eq!(
+            parse_ssh_endpoint("ocany@14.225.250.92", 2244, "root"),
+            ("ocany".into(), "14.225.250.92".into(), 2244)
+        );
+        assert_eq!(
+            parse_ssh_endpoint("ocany@14.225.250.92:2244", 22, "root"),
+            ("ocany".into(), "14.225.250.92".into(), 2244)
+        );
+        assert_eq!(
+            parse_ssh_endpoint("14.225.250.92:2222", 22, "ubuntu"),
+            ("ubuntu".into(), "14.225.250.92".into(), 2222)
+        );
     }
 
     #[test]

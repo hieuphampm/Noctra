@@ -45,6 +45,7 @@ import { SettingsView } from "@/features/settings/SettingsView";
 import { ApprovalModal } from "@/components/ApprovalModal";
 import { CommandPalette } from "@/components/CommandPalette";
 import { DevConsoleDrawer } from "@/components/DevConsoleDrawer";
+import { ProviderPickerModal } from "@/components/ProviderPickerModal";
 
 export function AppShell() {
   const qc = useQueryClient();
@@ -124,10 +125,16 @@ export function AppShell() {
         .getState()
         .setPreferredInternetMode(appSettings.internet.defaultEnabled);
     }
+    if (appSettings?.ai?.defaultProviderId && !useAppStore.getState().preferredProviderId) {
+      useAppStore
+        .getState()
+        .setPreferredProviderId(appSettings.ai.defaultProviderId);
+    }
   }, [
     appSettings?.general?.language,
     appSettings?.agents?.defaultExecutionMode,
     appSettings?.internet?.defaultEnabled,
+    appSettings?.ai?.defaultProviderId,
     setLanguage,
   ]);
 
@@ -191,13 +198,16 @@ export function AppShell() {
       setActiveSection("chat");
       return;
     }
+    const prefProvId = useAppStore.getState().preferredProviderId;
+    const chosenProv =
+      providers.find((p) => p.id === prefProvId) ?? providers[0] ?? null;
     const created = await api.createConversation({
       title: "New Conversation",
       mode: "direct",
       executionMode: useAppStore.getState().preferredExecutionMode,
       internetMode: useAppStore.getState().preferredInternetMode,
-      providerId: providers[0]?.id ?? null,
-      model: providers[0]?.modelId ?? null,
+      providerId: chosenProv?.id ?? null,
+      model: chosenProv?.modelId ?? null,
     });
     await qc.invalidateQueries({ queryKey: ["conversations"] });
     setActiveConvId(created.id);
@@ -264,13 +274,17 @@ export function AppShell() {
   const activeProjectId = useAppStore((s) => s.activeProjectId);
   const preferredExecutionMode = useAppStore((s) => s.preferredExecutionMode);
   const preferredInternetMode = useAppStore((s) => s.preferredInternetMode);
+  const preferredProviderId = useAppStore((s) => s.preferredProviderId);
+  const openProviderPicker = useAppStore((s) => s.openProviderPicker);
   const setSettingsSection = useAppStore((s) => s.setSettingsSection);
   const activeProject =
     projects.find((p) => p.id === (activeConv?.projectId ?? activeProjectId)) ?? null;
   const activeExecMode = activeConv?.executionMode ?? preferredExecutionMode;
   const activeInternetMode = activeConv?.internetMode ?? preferredInternetMode;
   const activeProvider =
-    providers.find((p) => p.id === activeConv?.activeProviderId) ?? providers[0];
+    providers.find((p) => p.id === activeConv?.activeProviderId) ??
+    providers.find((p) => p.id === preferredProviderId) ??
+    providers[0];
   const activeAgent = agents.find((a) => a.id === activeConv?.activeAgentId);
   const connectedMcp = mcpServers.filter((s) => s.status === "connected");
   const connectedSsh = sshServers.filter((s) => s.status === "connected");
@@ -508,8 +522,19 @@ export function AppShell() {
 
             <div className="p-4 space-y-4 text-xs">
               <div className="rounded-xl border border-[#252B3A] bg-[#121622] p-3 space-y-1.5">
-                <div className="text-[10px] uppercase tracking-wider text-[#9399AA]">
-                  {t("inspector.currentModel")}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[10px] uppercase tracking-wider text-[#9399AA]">
+                    {t("inspector.currentModel")}
+                  </div>
+                  {providers.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => openProviderPicker(null)}
+                      className="text-[10px] text-[#A78BFA] hover:underline cursor-pointer"
+                    >
+                      {t("providers.switchBtn")}
+                    </button>
+                  )}
                 </div>
                 <div className="font-medium text-[#F3F4F8]">
                   {activeConv?.activeModel || activeProvider?.modelId || t("inspector.notConfigured")}
@@ -666,8 +691,15 @@ export function AppShell() {
       <footer className="flex h-7 shrink-0 items-center justify-between gap-4 overflow-hidden border-t border-[#252B3A] bg-[#0D1018] px-3 text-[11px] text-[#9399AA] select-none">
         <div className="flex min-w-0 items-center gap-4">
           <button
-            onClick={() => setActiveSection("providers")}
+            onClick={() => {
+              if (providers.length > 0) {
+                openProviderPicker(null);
+              } else {
+                setActiveSection("providers");
+              }
+            }}
             className="flex min-w-0 items-center gap-1.5 hover:text-[#F3F4F8] cursor-pointer"
+            title={t("providers.pickerTitle")}
           >
             <span
               className={`h-2 w-2 shrink-0 rounded-full ${
@@ -793,6 +825,7 @@ export function AppShell() {
 
       {/* Global Modals */}
       <ApprovalModal />
+      <ProviderPickerModal />
       <CommandPalette onNewChat={handleNewChat} />
     </div>
   );

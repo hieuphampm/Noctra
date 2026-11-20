@@ -241,4 +241,25 @@ describe("NOCTRA STUDIO UI & Store", () => {
       screen.getByText("Run SSH command on 'root@10.0.0.5:22': systemctl restart nginx")
     ).toBeInTheDocument();
   });
+
+  it("opens Choose AI Provider Template popup on Add Provider and opens Select Active AI Provider popup", () => {
+    render(<App />);
+    fireEvent.click(screen.getByText("AI Providers"));
+    expect(screen.getByText("New AI Provider")).toBeInTheDocument();
+
+    // Clicking Add opens Choose AI Provider Template popup
+    fireEvent.click(screen.getByRole("button", { name: /^Add$/i }));
+    expect(screen.getByText("Choose AI Provider Template")).toBeInTheDocument();
+    expect(screen.getByText("Google Gemini")).toBeInTheDocument();
+    expect(screen.getByText("DeepSeek")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Google Gemini"));
+    expect(screen.queryByText("Choose AI Provider Template")).not.toBeInTheDocument();
+
+    // Open Select Active AI Provider popup via store
+    act(() => {
+      useAppStore.getState().openProviderPicker("new-prov-1");
+    });
+    expect(screen.getByText("Select Active AI Provider")).toBeInTheDocument();
+    expect(screen.getByText("Use Provider & Open Chat")).toBeInTheDocument();
+  });
 });

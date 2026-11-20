@@ -37,6 +37,9 @@ interface AppStoreState {
   // Workspace IDE & Execution Mode
   preferredExecutionMode: ExecutionMode;
   preferredInternetMode: boolean;
+  preferredProviderId: string | null;
+  providerPickerOpen: boolean;
+  newlyAddedProviderId: string | null;
   settingsSection: "general" | "ai" | "mcp" | "agents" | "skills" | "security" | "internet" | "advanced";
   workspaceSplitOpen: boolean;
   openEditorTabs: OpenEditorTab[];
@@ -58,6 +61,9 @@ interface AppStoreState {
   setActiveProjectId: (id: string | null) => void;
   setPreferredExecutionMode: (mode: ExecutionMode) => void;
   setPreferredInternetMode: (enabled: boolean) => void;
+  setPreferredProviderId: (id: string | null) => void;
+  openProviderPicker: (newlyAddedId?: string | null) => void;
+  closeProviderPicker: () => void;
   setSettingsSection: (
     s: "general" | "ai" | "mcp" | "agents" | "skills" | "security" | "internet" | "advanced"
   ) => void;
@@ -112,6 +118,9 @@ export const useAppStore = create<AppStoreState>((set) => ({
 
   preferredExecutionMode: "review",
   preferredInternetMode: false,
+  preferredProviderId: null,
+  providerPickerOpen: false,
+  newlyAddedProviderId: null,
   settingsSection: "general",
   workspaceSplitOpen: true,
   openEditorTabs: [],
@@ -136,6 +145,11 @@ export const useAppStore = create<AppStoreState>((set) => ({
   setActiveProjectId: (activeProjectId) => set({ activeProjectId }),
   setPreferredExecutionMode: (preferredExecutionMode) => set({ preferredExecutionMode }),
   setPreferredInternetMode: (preferredInternetMode) => set({ preferredInternetMode }),
+  setPreferredProviderId: (preferredProviderId) => set({ preferredProviderId }),
+  openProviderPicker: (newlyAddedId = null) =>
+    set({ providerPickerOpen: true, newlyAddedProviderId: newlyAddedId ?? null }),
+  closeProviderPicker: () =>
+    set({ providerPickerOpen: false, newlyAddedProviderId: null }),
   setSettingsSection: (settingsSection) => set({ settingsSection }),
   setWorkspaceSplitOpen: (workspaceSplitOpen) => set({ workspaceSplitOpen }),
   openEditorTab: (tab) =>
