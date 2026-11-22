@@ -427,7 +427,34 @@ export function ChatView() {
     window.addEventListener("mouseup", onUp);
   };
 
+  const trimmedDraft = draft.trim();
+  const showBrowserSlashAutocomplete =
+    trimmedDraft.startsWith("/") &&
+    !/\s/.test(trimmedDraft) &&
+    trimmedDraft.toLowerCase() !== "/browser" &&
+    "/browser".startsWith(trimmedDraft.toLowerCase());
+  const browserDraftActive = /(?:^|\s)\/browser(?:\s|$)/i.test(trimmedDraft);
+  const detectedBrowserUrl = React.useMemo(() => {
+    if (!browserDraftActive) return null;
+    const match = trimmedDraft.match(/(?:^|\s)\/browser(?:\s+|$)([\s\S]*)/i);
+    if (!match) return null;
+    const after = match[1].replace(/^[\s+:-]+/, "").trim();
+    if (!after) return null;
+    const first = after.split(/\s+/)[0]?.replace(/^[<"'(),;]+|[<"'(),;]+$/g, "") ?? "";
+    if (/^https?:\/\//i.test(first)) return first;
+    if (/^(localhost(:\d+)?|\d{1,3}(\.\d{1,3}){3}(:\d+)?|[a-z0-9-]+(\.[a-z0-9-]+)+(\/.*)?)$/i.test(first)) {
+      return first;
+    }
+    const urlMatch = after.match(/https?:\/\/[^\s<>"')]+/i);
+    return urlMatch ? urlMatch[0] : null;
+  }, [browserDraftActive, trimmedDraft]);
+
   const handleComposerKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Tab" && showBrowserSlashAutocomplete) {
+      e.preventDefault();
+      setDraft("/browser ");
+      return;
+    }
     if (e.key !== "Enter") return;
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.shiftKey) return;
@@ -617,25 +644,6 @@ export function ChatView() {
               <span className="hidden sm:inline">{t("ssh.quickConnect")}</span>
             </Button>
           </div>
-
-          {/* Browser Automation (/browser) Quick Launch & Session Inspector */}
-          <Button
-            type="button"
-            size="sm"
-            variant={browserSession?.currentUrl ? "cyan" : "secondary"}
-            onClick={() => {
-              setBrowserModalTab(browserSession?.currentUrl ? "session" : "launch");
-              setBrowserModalOpen(true);
-            }}
-            title={t("browser.buttonTitle")}
-            className="h-7 px-2.5 text-[11px]"
-          >
-            <Compass className="h-3.5 w-3.5 text-[#67DDF2]" />
-            <span>{t("browser.buttonLabel")}</span>
-            {browserSession?.currentUrl && (
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            )}
-          </Button>
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -1129,10 +1137,39 @@ export function ChatView() {
                 </div>
               )}
 
-              {/^\/browser(\s|$)/i.test(draft.trim()) && (
-                <div className="mb-2 flex items-center gap-2 rounded-lg border border-[#67DDF2]/35 bg-[#67DDF2]/10 px-2.5 py-1.5 text-[11px] text-[#67DDF2]">
-                  <Compass className="h-3.5 w-3.5 shrink-0" />
-                  <span>{t("browser.composerHint")}</span>
+              {showBrowserSlashAutocomplete && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraft("/browser ");
+                    composerRef.current?.focus();
+                  }}
+                  className="mb-2 flex w-full items-center justify-between gap-2 rounded-lg border border-[#67DDF2]/40 bg-[#0D1018] px-2.5 py-2 text-left text-[11px] hover:bg-[#191E2C] transition-colors cursor-pointer"
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <Compass className="h-3.5 w-3.5 text-[#67DDF2] shrink-0" />
+                    <span className="font-mono font-semibold text-[#67DDF2]">/browser</span>
+                    <span className="text-[#9399AA] truncate">
+                      {t("browser.slashSuggestionDesc")}
+                    </span>
+                  </span>
+                  <span className="shrink-0 rounded border border-[#252B3A] bg-[#121622] px-1.5 py-0.5 text-[10px] text-[#9399AA]">
+                    {t("browser.slashTabHint")}
+                  </span>
+                </button>
+              )}
+
+              {browserDraftActive && (
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#67DDF2]/35 bg-[#67DDF2]/10 px-2.5 py-1.5 text-[11px] text-[#67DDF2]">
+                  <span className="flex items-center gap-2 min-w-0">
+                    <Compass className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{t("browser.composerHint")}</span>
+                  </span>
+                  {detectedBrowserUrl && (
+                    <span className="font-mono text-[10px] rounded bg-[#090B10]/70 px-2 py-0.5 text-[#F3F4F8] truncate max-w-[260px]">
+                      {detectedBrowserUrl}
+                    </span>
+                  )}
                 </div>
               )}
 

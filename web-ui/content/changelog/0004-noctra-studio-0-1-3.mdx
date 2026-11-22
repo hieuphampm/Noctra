@@ -10,7 +10,7 @@ added:
   - "10 built-in browser interaction tools: `browser_navigate`, `browser_inspect_page`, `browser_click`, `browser_type`, `browser_select_option`, `browser_fill_form`, `browser_submit_form`, `browser_search_page`, `browser_scroll`, and `browser_extract_data`."
   - "Automatic detection of login walls, HTTP 401/403, 2FA/OTP prompts, and CAPTCHA/anti-bot challenges (Cloudflare Turnstile, reCAPTCHA, hCaptcha) to pause and request user assistance instead of attempting bypasses."
   - "Mandatory user confirmation via `ApprovalModal` (`browser_sensitive`) before executing sensitive or binding web actions such as payments/checkout, binding form submissions, data deletion, or account modifications — even in Turbo mode."
-  - "Chat `/browser` quick-launch & session inspector modal (`BrowserSessionModal`), live Browser Session banner, composer `/browser` hint pill, Contextual Inspector card, and Status Bar indicator."
+  - "Inline `/browser` slash-command autocomplete (`Tab` to complete) and live URL detection directly inside the Chat composer, active Browser Session status bar, session inspector (`BrowserSessionModal`), Contextual Inspector card, and Status Bar indicator."
 improvements:
   - "Password field inputs in browser sessions are masked in snapshots and registered with `SecretRedactor` to prevent leakage in logs."
   - "Added full English and Vietnamese UI localization for Browser Automation workflows and audit logging."

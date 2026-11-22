@@ -263,8 +263,11 @@ describe("NOCTRA STUDIO UI & Store", () => {
     expect(screen.getByText("Use Provider & Open Chat")).toBeInTheDocument();
   });
 
-  it("activates /browser hint only for /browser commands, launches Browser modal, and shows sensitive browser warning in ApprovalModal", () => {
+  it("activates /browser directly from chat composer with slash autocomplete, URL detection, and sensitive approval warning", () => {
     render(<App />);
+
+    // No dedicated /browser toolbar button — triggered directly by typing in chat
+    expect(screen.queryByRole("button", { name: /^\/browser$/i })).not.toBeInTheDocument();
 
     const composer = screen.getByPlaceholderText(/Enter to send, Shift\+Enter for newline/i);
 
@@ -272,20 +275,18 @@ describe("NOCTRA STUDIO UI & Store", () => {
     fireEvent.change(composer, { target: { value: "Search for example.com info" } });
     expect(screen.queryByText(/Browser Automation \(\/browser\) detected/i)).not.toBeInTheDocument();
 
-    // Open /browser modal from toolbar and insert command
-    fireEvent.click(screen.getByRole("button", { name: /^\/browser$/i }));
-    expect(screen.getByText("Browser Automation (/browser)")).toBeInTheDocument();
+    // Typing /b displays inline slash autocomplete and Tab completes to "/browser "
+    fireEvent.change(composer, { target: { value: "/b" } });
+    expect(screen.getByText(/Tab to complete/i)).toBeInTheDocument();
+    fireEvent.keyDown(composer, { key: "Tab" });
+    expect((composer as HTMLTextAreaElement).value).toBe("/browser ");
 
-    const urlField = screen.getByPlaceholderText("https://example.com");
-    fireEvent.change(urlField, { target: { value: "https://example.com" } });
-    const taskField = screen.getByPlaceholderText(/Search for pricing plans/i);
-    fireEvent.change(taskField, { target: { value: "Extract headings and click Docs" } });
-
-    fireEvent.click(screen.getByRole("button", { name: "Insert into Chat" }));
-    expect((composer as HTMLTextAreaElement).value).toBe(
-      "/browser https://example.com Extract headings and click Docs"
-    );
+    // Typing full /browser <URL> <task> shows detected URL & activation hint
+    fireEvent.change(composer, {
+      target: { value: "/browser https://example.com Extract headings and click Docs" },
+    });
     expect(screen.getByText(/Browser Automation \(\/browser\) detected/i)).toBeInTheDocument();
+    expect(screen.getByText("https://example.com")).toBeInTheDocument();
 
     // Sensitive browser approval warning in ApprovalModal
     act(() => {

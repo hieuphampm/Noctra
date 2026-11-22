@@ -262,21 +262,26 @@ impl BrowserSession {
     }
 }
 
-/// Checks if a user prompt starts with `/browser` and parses the optional target URL and instructions.
+/// Checks if a user prompt invokes the `/browser` slash command (standalone token)
+/// and parses the optional target URL and instructions.
 /// Returns `None` for normal prompts that do not invoke `/browser`.
 pub fn parse_browser_command(input: &str) -> Option<BrowserCommand> {
     let trimmed = input.trim();
-    let lower = trimmed.to_ascii_lowercase();
-    if !lower.starts_with("/browser") {
-        return None;
-    }
-    let after_cmd = &trimmed["/browser".len()..];
-    if !after_cmd.is_empty() && !after_cmd.starts_with(char::is_whitespace) {
+    if trimmed.is_empty() {
         return None;
     }
 
-    let rest = after_cmd.trim();
-    if rest.is_empty() {
+    // Match standalone `/browser` token (preceded by start or whitespace, followed by end or whitespace)
+    let re_cmd = Regex::new(r"(?i)(?:^|\s)/browser(?:\s|$)").unwrap();
+    let m = re_cmd.find(trimmed)?;
+
+    let before_cmd = trimmed[..m.start()].trim();
+    let after_cmd = trimmed[m.end()..].trim();
+    let after_clean = after_cmd
+        .trim_start_matches(|c: char| c == '+' || c == ':' || c == '-' || c.is_whitespace())
+        .trim();
+
+    if after_clean.is_empty() && before_cmd.is_empty() {
         return Some(BrowserCommand {
             url: None,
             instruction: String::new(),
@@ -285,27 +290,49 @@ pub fn parse_browser_command(input: &str) -> Option<BrowserCommand> {
     }
 
     // 1. Check if the first token after /browser is a URL or domain
-    let mut parts = rest.splitn(2, char::is_whitespace);
-    let first_token = parts.next().unwrap_or("").trim();
-    let remainder = parts.next().unwrap_or("").trim();
+    if !after_clean.is_empty() {
+        let mut parts = after_clean.splitn(2, char::is_whitespace);
+        let first_token = parts.next().unwrap_or("").trim();
+        let remainder = parts
+            .next()
+            .unwrap_or("")
+            .trim()
+            .trim_start_matches(|c: char| c == '+' || c.is_whitespace())
+            .trim();
 
-    let clean_first = first_token.trim_matches(|c: char| matches!(c, '<' | '>' | '"' | '\'' | ',' | ';'));
-    if let Some(normalized_url) = try_normalize_browser_url(clean_first) {
-        return Some(BrowserCommand {
-            url: Some(normalized_url),
-            instruction: remainder.to_string(),
-            raw_input: trimmed.to_string(),
-        });
+        let clean_first = first_token
+            .trim_matches(|c: char| matches!(c, '<' | '>' | '"' | '\'' | ',' | ';' | ')' | '('));
+        if let Some(normalized_url) = try_normalize_browser_url(clean_first) {
+            let instruction = match (before_cmd.is_empty(), remainder.is_empty()) {
+                (true, true) => String::new(),
+                (true, false) => remainder.to_string(),
+                (false, true) => before_cmd.to_string(),
+                (false, false) => format!("{before_cmd} {remainder}"),
+            };
+            return Some(BrowserCommand {
+                url: Some(normalized_url),
+                instruction,
+                raw_input: trimmed.to_string(),
+            });
+        }
     }
 
+    let combined = match (before_cmd.is_empty(), after_clean.is_empty()) {
+        (true, false) => after_clean.to_string(),
+        (false, true) => before_cmd.to_string(),
+        (false, false) => format!("{before_cmd} {after_clean}"),
+        (true, true) => String::new(),
+    };
+
     // 2. Otherwise check if an explicit http(s):// URL appears anywhere inside the command
-    for token in rest.split_whitespace() {
-        let candidate = token.trim_matches(|c: char| matches!(c, '<' | '>' | '"' | '\'' | ',' | ';' | ')' | '('));
+    for token in combined.split_whitespace() {
+        let candidate =
+            token.trim_matches(|c: char| matches!(c, '<' | '>' | '"' | '\'' | ',' | ';' | ')' | '('));
         if candidate.starts_with("http://") || candidate.starts_with("https://") {
             if let Ok(parsed) = Url::parse(candidate) {
                 return Some(BrowserCommand {
                     url: Some(parsed.to_string()),
-                    instruction: rest.to_string(),
+                    instruction: combined,
                     raw_input: trimmed.to_string(),
                 });
             }
@@ -315,7 +342,7 @@ pub fn parse_browser_command(input: &str) -> Option<BrowserCommand> {
     // 3. /browser command continuing on the active session without a new URL
     Some(BrowserCommand {
         url: None,
-        instruction: rest.to_string(),
+        instruction: combined,
         raw_input: trimmed.to_string(),
     })
 }
@@ -3386,6 +3413,17 @@ mod tests {
         let cmd3 = parse_browser_command("/browser click vào nút Đăng ký").unwrap();
         assert_eq!(cmd3.url, None);
         assert_eq!(cmd3.instruction, "click vào nút Đăng ký");
+
+        // /browser with + separators or inline slash command
+        let cmd4 = parse_browser_command("/browser + https://example.com + Tóm tắt bảng giá").unwrap();
+        assert_eq!(cmd4.url.as_deref(), Some("https://example.com/"));
+        assert_eq!(cmd4.instruction, "Tóm tắt bảng giá");
+
+        let cmd5 = parse_browser_command("Hãy mở /browser https://example.com/app và kiểm tra menu").unwrap();
+        assert_eq!(cmd5.url.as_deref(), Some("https://example.com/app"));
+
+        // URL path containing /browser must NOT falsely trigger
+        assert!(parse_browser_command("Xem tài liệu tại https://example.com/browser/docs").is_none());
     }
 
     #[test]
