@@ -1,5 +1,6 @@
 pub mod agents;
 pub mod ai;
+pub mod browser;
 pub mod commands;
 pub mod error;
 pub mod internet;
@@ -169,6 +170,9 @@ pub fn run() {
             commands::test_ssh_connection,
             commands::exec_ssh_command,
             commands::reset_ssh_host_fingerprint,
+            commands::get_browser_session,
+            commands::list_browser_sessions,
+            commands::close_browser_session,
             commands::list_audit_logs,
             commands::clear_audit_logs,
             commands::export_backup_json,

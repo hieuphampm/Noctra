@@ -33,6 +33,9 @@ pub enum AppError {
     #[error("SSH error: {0}")]
     Ssh(String),
 
+    #[error("Browser automation error: {0}")]
+    Browser(String),
+
     #[error("IO error: {0}")]
     Io(String),
 

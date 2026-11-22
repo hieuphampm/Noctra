@@ -1,6 +1,10 @@
 use crate::ai::{
     build_openai_messages, complete_chat, OpenAiFunctionDef, OpenAiToolDef,
 };
+use crate::browser::{
+    browser_mode_system_prompt, builtin_browser_tool_specs, describe_browser_action,
+    execute_builtin_browser_tool, parse_browser_command, BrowserManager,
+};
 use crate::error::{AppError, AppResult};
 use crate::internet::{
     builtin_internet_tool_specs, describe_internet_action, execute_builtin_internet_tool,
@@ -64,6 +68,11 @@ enum ResolvedToolTarget {
         category: String,
         is_mutating: bool,
     },
+    BuiltinBrowser {
+        name: String,
+        category: String,
+        is_mutating: bool,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,6 +101,7 @@ pub struct AgentRuntime {
     pub redactor: Arc<SecretRedactor>,
     pub mcp: Arc<McpHubManager>,
     pub ssh: Arc<SshManager>,
+    pub browser: Arc<BrowserManager>,
     pub permissions: Arc<PermissionManager>,
     active_runs: Mutex<HashMap<String, CancellationToken>>,
 }
@@ -105,12 +115,14 @@ impl AgentRuntime {
         ssh: Arc<SshManager>,
         permissions: Arc<PermissionManager>,
     ) -> Self {
+        let browser = Arc::new(BrowserManager::new(redactor.clone()));
         Self {
             db,
             creds,
             redactor,
             mcp,
             ssh,
+            browser,
             permissions,
             active_runs: Mutex::new(HashMap::new()),
         }
@@ -284,6 +296,7 @@ impl AgentRuntime {
         project_id: Option<&str>,
         internet_enabled: bool,
         ssh_server_id: Option<&str>,
+        browser_enabled: bool,
     ) -> AppResult<(Vec<OpenAiToolDef>, HashMap<String, ResolvedToolTarget>)> {
         let (mut defs, mut targets): (Vec<OpenAiToolDef>, HashMap<String, ResolvedToolTarget>) =
             if let Some(ag) = agent {
@@ -371,6 +384,30 @@ impl AgentRuntime {
             }
         }
 
+        // Only register Browser Automation tools when explicitly triggered via `/browser`
+        if browser_enabled {
+            for spec in builtin_browser_tool_specs() {
+                if !targets.contains_key(&spec.name) {
+                    defs.push(OpenAiToolDef {
+                        kind: "function".into(),
+                        function: OpenAiFunctionDef {
+                            name: spec.name.clone(),
+                            description: spec.description,
+                            parameters: spec.parameters,
+                        },
+                    });
+                    targets.insert(
+                        spec.name.clone(),
+                        ResolvedToolTarget::BuiltinBrowser {
+                            name: spec.name,
+                            category: spec.category,
+                            is_mutating: spec.is_mutating,
+                        },
+                    );
+                }
+            }
+        }
+
         Ok((defs, targets))
     }
 
@@ -394,6 +431,8 @@ impl AgentRuntime {
             .db
             .get_conversation(&conversation_id)?
             .ok_or_else(|| AppError::NotFound(format!("Conversation '{conversation_id}' not found")))?;
+
+        let browser_cmd = parse_browser_command(&user_text);
 
         let now = Utc::now().to_rfc3339();
         let user_msg = ChatMessage {
@@ -506,11 +545,88 @@ impl AgentRuntime {
             }
         }
 
+        if let Some(ref b_cmd) = browser_cmd {
+            let mut initial_nav_err: Option<String> = None;
+            if let Some(ref target_url) = b_cmd.url {
+                let nav_started = Instant::now();
+                let nav_call_id = format!("browser-init-{}", Uuid::new_v4());
+                let mut nav_record = ToolCallRecord {
+                    id: nav_call_id,
+                    server_id: Some("builtin:browser".into()),
+                    name: "browser_navigate".into(),
+                    arguments: serde_json::json!({ "url": target_url }),
+                    status: "running".into(),
+                    result: None,
+                    error: None,
+                    duration_ms: None,
+                };
+                emit_event(ChatStreamEvent {
+                    run_id: run_id.clone(),
+                    conversation_id: conversation_id.clone(),
+                    kind: "tool_call".into(),
+                    text: None,
+                    tool_call: Some(nav_record.clone()),
+                    message: None,
+                    changed_paths: None,
+                });
+
+                match self
+                    .browser
+                    .navigate(&conversation_id, target_url, cancel.clone())
+                    .await
+                {
+                    Ok(val) => {
+                        nav_record.status = "completed".into();
+                        nav_record.result = Some(val);
+                        nav_record.duration_ms = Some(nav_started.elapsed().as_millis() as u64);
+                        self.db.log_event(
+                            "browser",
+                            "info",
+                            &format!("Browser Automation navigated to '{target_url}'"),
+                            None,
+                        );
+                    }
+                    Err(e) => {
+                        let redacted = self.redactor.redact(&e.to_string());
+                        nav_record.status = "error".into();
+                        nav_record.error = Some(redacted.clone());
+                        nav_record.duration_ms = Some(nav_started.elapsed().as_millis() as u64);
+                        initial_nav_err = Some(redacted.clone());
+                        self.db.log_event(
+                            "browser",
+                            "warn",
+                            &format!("Browser Automation failed to load '{target_url}'"),
+                            Some(&redacted),
+                        );
+                    }
+                }
+                emit_event(ChatStreamEvent {
+                    run_id: run_id.clone(),
+                    conversation_id: conversation_id.clone(),
+                    kind: "tool_result".into(),
+                    text: None,
+                    tool_call: Some(nav_record),
+                    message: None,
+                    changed_paths: None,
+                });
+            }
+
+            let snap = self.browser.get_session_snapshot(&conversation_id).await;
+            let browser_note =
+                browser_mode_system_prompt(snap.as_ref(), b_cmd, initial_nav_err.as_deref());
+            if system_prompt.trim().is_empty() {
+                system_prompt = browser_note;
+            } else {
+                system_prompt = format!("{system_prompt}\n\n{browser_note}");
+            }
+        }
+
         let (tool_defs, tool_map) = self.resolve_runtime_tools(
             agent.as_ref(),
             conv.project_id.as_deref(),
             internet_enabled,
             active_ssh_server.as_ref().map(|s| s.id.as_str()),
+            browser_cmd.is_some(),
         )?;
         let is_turbo = conv.execution_mode.eq_ignore_ascii_case("turbo");
 
@@ -610,14 +726,16 @@ impl AgentRuntime {
                 return Ok(final_msg);
             }
 
-            // Agent or Internet Mode requested tool calls: enforce permission pipeline deterministically
+            // Agent or Internet/SSH/Browser Mode requested tool calls: enforce permission pipeline deterministically
             let assistant_ts = Utc::now();
             let actor_id: Option<String> = agent.as_ref().map(|a| a.id.clone());
             let actor_name: String = agent
                 .as_ref()
                 .map(|a| a.name.clone())
                 .unwrap_or_else(|| {
-                    if active_ssh_server.is_some() {
+                    if browser_cmd.is_some() {
+                        "Browser Automation".into()
+                    } else if active_ssh_server.is_some() {
                         "SSH Automation".into()
                     } else {
                         "Internet Mode".into()
@@ -657,6 +775,9 @@ impl AgentRuntime {
                     continue;
                 };
 
+                let mut browser_sensitivity_reason: Option<String> = None;
+                let mut active_browser_url: Option<String> = None;
+
                 let (
                     server_label,
                     tool_display_name,
@@ -665,6 +786,7 @@ impl AgentRuntime {
                     is_builtin_project,
                     is_builtin_internet,
                     is_builtin_ssh,
+                    is_builtin_browser,
                     is_mutating,
                 ) = match target {
                     ResolvedToolTarget::Mcp(mcp_tool) => {
@@ -680,6 +802,7 @@ impl AgentRuntime {
                             mcp_tool.name.clone(),
                             format!("{}:{}", mcp_tool.server_name, mcp_tool.name),
                             cat,
+                            false,
                             false,
                             false,
                             false,
@@ -700,6 +823,7 @@ impl AgentRuntime {
                             true,
                             false,
                             false,
+                            false,
                             *is_mutating,
                         )
                     }
@@ -718,6 +842,7 @@ impl AgentRuntime {
                             category.clone(),
                             false,
                             true,
+                            false,
                             false,
                             *is_active_probe,
                         )
@@ -743,13 +868,54 @@ impl AgentRuntime {
                             false,
                             false,
                             true,
+                            false,
                             *is_mutating,
+                        )
+                    }
+                    ResolvedToolTarget::BuiltinBrowser {
+                        name,
+                        category,
+                        is_mutating,
+                    } => {
+                        record.server_id = Some("builtin:browser".into());
+                        active_browser_url = self
+                            .browser
+                            .get_session_snapshot(&conversation_id)
+                            .await
+                            .and_then(|s| s.current_url);
+                        let (is_sens, sens_reason) = self
+                            .browser
+                            .check_action_sensitivity(&conversation_id, name, &tc.arguments)
+                            .await;
+                        browser_sensitivity_reason = sens_reason;
+                        let effective_cat = if is_sens {
+                            "browser_sensitive".to_string()
+                        } else {
+                            category.clone()
+                        };
+                        let res_key = tc
+                            .arguments
+                            .get("url")
+                            .and_then(|v| v.as_str())
+                            .map(|u| u.to_string())
+                            .or_else(|| active_browser_url.clone())
+                            .unwrap_or_else(|| format!("browser:{name}"));
+                        (
+                            "Browser Automation".to_string(),
+                            name.clone(),
+                            res_key,
+                            effective_cat,
+                            false,
+                            false,
+                            false,
+                            true,
+                            *is_mutating || is_sens,
                         )
                     }
                 };
 
-                // Enforce file directory scope if arguments specify a path (skipped for internet/ssh tools)
-                if !is_builtin_internet && !is_builtin_ssh {
+                // Enforce file directory scope if arguments specify a path (skipped for internet/ssh/browser tools)
+                if !is_builtin_internet && !is_builtin_ssh && !is_builtin_browser {
                     if let Some(ag) = agent.as_ref() {
                         if let Err(scope_err) = enforce_agent_file_scope(
                             &self.db,
@@ -784,9 +950,15 @@ impl AgentRuntime {
                     continue;
                 }
 
-                let needs_approval = if is_turbo {
+                let needs_approval = if is_builtin_browser && primary_cat == "browser_sensitive" {
+                    // Sensitive browser actions (payments, binding form submissions, deletions, account changes)
+                    // ALWAYS require explicit user confirmation unless pre-authorized by rule.
+                    mode != "always" && mode != "session"
+                } else if is_turbo {
                     false
                 } else if mode == "always" || mode == "session" {
+                    false
+                } else if is_builtin_browser {
                     false
                 } else if is_builtin_project {
                     // In Review mode, read-only project exploration runs smoothly; mutating edits always ask user.
@@ -837,17 +1009,31 @@ impl AgentRuntime {
                         } else {
                             format!("Run SSH tool '{tool_display_name}'")
                         }
+                    } else if is_builtin_browser {
+                        describe_browser_action(
+                            &tool_display_name,
+                            &tc.arguments,
+                            active_browser_url.as_deref(),
+                        )
                     } else {
                         format!("Execute MCP tool '{tool_display_name}'")
                     };
 
-                    let affected_resources = if is_builtin_internet || is_builtin_ssh {
-                        vec![resource_key.clone()]
-                    } else {
-                        extract_affected_resources(&tc.arguments, &resource_key)
-                    };
+                    let affected_resources =
+                        if is_builtin_internet || is_builtin_ssh || is_builtin_browser {
+                            vec![resource_key.clone()]
+                        } else {
+                            extract_affected_resources(&tc.arguments, &resource_key)
+                        };
 
-                    let reason = if is_builtin_internet {
+                    let reason = if is_builtin_browser {
+                        browser_sensitivity_reason.unwrap_or_else(|| {
+                            format!(
+                                "{} requested sensitive browser action '{}' on '{}'. Confirm before executing.",
+                                actor_name, tool_display_name, resource_key
+                            )
+                        })
+                    } else if is_builtin_internet {
                         format!(
                             "{} requested '{}' via {} (Review Mode). Confirm you are authorized to probe '{}'.",
                             actor_name, tool_display_name, server_label, resource_key
@@ -966,6 +1152,26 @@ impl AgentRuntime {
                             if res.is_ok() { "info" } else { "warn" },
                             &format!(
                                 "SSH '{}' executed {} on {}",
+                                actor_name, name, resource_key
+                            ),
+                            res.as_ref().err().map(|e| e.to_string()).as_deref(),
+                        );
+                        res.map(|v| (v, vec![]))
+                    }
+                    ResolvedToolTarget::BuiltinBrowser { name, .. } => {
+                        let res = execute_builtin_browser_tool(
+                            &self.browser,
+                            &conversation_id,
+                            name,
+                            &tc.arguments,
+                            cancel.clone(),
+                        )
+                        .await;
+                        self.db.log_event(
+                            "browser",
+                            if res.is_ok() { "info" } else { "warn" },
+                            &format!(
+                                "Browser Automation '{}' executed {} on {}",
                                 actor_name, name, resource_key
                             ),
                             res.as_ref().err().map(|e| e.to_string()).as_deref(),
@@ -2331,5 +2537,232 @@ mod tests {
 
         assert_eq!(approval_seen.load(Ordering::SeqCst), 1);
         assert!(msg.content.contains("NOCTRA-TEST-BANNER"));
+    }
+
+    #[tokio::test]
+    async fn browser_slash_command_activates_browser_tools_and_requires_approval_for_sensitive_submit() {
+        use axum::{response::Html, routing::get};
+
+        let dir = TempDir::new().unwrap();
+
+        // 1. Mock target website
+        let web_app = Router::new()
+            .route(
+                "/portal",
+                get(|| async {
+                    Html(
+                        r#"<!DOCTYPE html>
+                        <html>
+                        <head><title>Customer Portal</title></head>
+                        <body>
+                            <h1>Customer Portal</h1>
+                            <form id="pay-form" action="/pay" method="POST">
+                                <input id="email-in" name="email" type="email" placeholder="Email" />
+                                <button id="pay-btn" type="submit">Thanh toán</button>
+                            </form>
+                        </body>
+                        </html>"#,
+                    )
+                }),
+            )
+            .route(
+                "/pay",
+                post(|| async {
+                    Html(
+                        r#"<html><head><title>Payment Success</title></head>
+                        <body><h1>Payment Completed</h1></body></html>"#,
+                    )
+                }),
+            );
+        let web_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let web_addr = web_listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(web_listener, web_app).await.unwrap();
+        });
+
+        // 2. Mock AI endpoint that verifies:
+        //    - Turn 1 (normal prompt without /browser): no browser_* tools attached
+        //    - Turn 2 (/browser <url> ...): browser_* tools attached, calls browser_type then browser_submit_form
+        let turn_counter = Arc::new(AtomicUsize::new(0));
+        let tc_clone = turn_counter.clone();
+        let ai_app = Router::new().route(
+            "/v1/chat/completions",
+            post(move |Json(body): Json<serde_json::Value>| {
+                let c = tc_clone.clone();
+                async move {
+                    let step = c.fetch_add(1, Ordering::SeqCst);
+                    if step == 0 {
+                        // Normal prompt: tools should be absent
+                        assert!(body.get("tools").is_none() || body["tools"].is_null());
+                        Json(serde_json::json!({
+                            "choices": [{
+                                "message": { "role": "assistant", "content": "Normal response without browser." },
+                                "finish_reason": "stop"
+                            }]
+                        }))
+                    } else if step == 1 {
+                        // /browser turn step 1: verify initial page snapshot in system prompt & browser_* tools
+                        let sys = body["messages"][0]["content"].as_str().unwrap_or("");
+                        assert!(sys.contains("Browser Automation Mode Active"));
+                        assert!(sys.contains("Customer Portal"));
+                        let tools = body["tools"].as_array().expect("browser tools should be attached");
+                        assert!(tools.iter().any(|t| t["function"]["name"] == "browser_type"));
+                        assert!(tools.iter().any(|t| t["function"]["name"] == "browser_submit_form"));
+
+                        Json(serde_json::json!({
+                            "choices": [{
+                                "message": {
+                                    "role": "assistant",
+                                    "content": "",
+                                    "tool_calls": [
+                                        {
+                                            "id": "b_call_1",
+                                            "type": "function",
+                                            "function": {
+                                                "name": "browser_type",
+                                                "arguments": "{\"name\":\"email\",\"text\":\"user@noctra.ai\"}"
+                                            }
+                                        },
+                                        {
+                                            "id": "b_call_2",
+                                            "type": "function",
+                                            "function": {
+                                                "name": "browser_submit_form",
+                                                "arguments": "{\"form_id\":\"form-1\"}"
+                                            }
+                                        }
+                                    ]
+                                },
+                                "finish_reason": "tool_calls"
+                            }]
+                        }))
+                    } else {
+                        let last = body["messages"].as_array().unwrap().last().unwrap();
+                        assert_eq!(last["role"], "tool");
+                        assert!(last["content"].as_str().unwrap().contains("Payment Success"));
+                        Json(serde_json::json!({
+                            "choices": [{
+                                "message": {
+                                    "role": "assistant",
+                                    "content": "Completed form entry and confirmed payment submission."
+                                },
+                                "finish_reason": "stop"
+                            }]
+                        }))
+                    }
+                }
+            }),
+        );
+        let ai_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let ai_addr = ai_listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(ai_listener, ai_app).await.unwrap();
+        });
+
+        let redactor = Arc::new(SecretRedactor::new());
+        let db = Arc::new(Database::open_in_memory(dir.path().to_path_buf(), redactor.clone()).unwrap());
+        let creds = Arc::new(CredentialStore::new_in_memory(redactor.clone()));
+        let mcp = Arc::new(McpHubManager::new(db.clone(), creds.clone(), redactor.clone()));
+        let ssh = Arc::new(SshManager::new(db.clone(), creds.clone(), redactor.clone()));
+        let perms = Arc::new(PermissionManager::new(db.clone()));
+        let runtime = Arc::new(AgentRuntime::new(
+            db.clone(),
+            creds,
+            redactor,
+            mcp,
+            ssh,
+            perms.clone(),
+        ));
+
+        let now = Utc::now().to_rfc3339();
+        db.upsert_provider(&AiProvider {
+            id: "p1".into(),
+            name: "Mock".into(),
+            base_url: format!("http://{ai_addr}/v1"),
+            model_id: "m1".into(),
+            custom_headers: HashMap::new(),
+            temperature: 0.1,
+            top_p: 1.0,
+            max_tokens: 512,
+            timeout_secs: 15,
+            streaming: false,
+            default_system_prompt: String::new(),
+            has_api_key: false,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+        })
+        .unwrap();
+
+        // Even in Turbo mode, sensitive browser actions (browser_submit_form) MUST ask for user confirmation!
+        db.upsert_conversation(&Conversation {
+            id: "conv-b1".into(),
+            title: "Browser Test".into(),
+            mode: "direct".into(),
+            execution_mode: "turbo".into(),
+            internet_mode: false,
+            active_provider_id: Some("p1".into()),
+            active_model: Some("m1".into()),
+            active_agent_id: None,
+            project_id: None,
+            ssh_server_id: None,
+            system_prompt_override: None,
+            created_at: now.clone(),
+            updated_at: now,
+        })
+        .unwrap();
+
+        // Turn 1: Normal prompt without /browser
+        let normal_msg = runtime
+            .execute_chat_turn(
+                "run-normal".into(),
+                "conv-b1".into(),
+                "Hello normal chat".into(),
+                vec![],
+                None,
+                None,
+                CancellationToken::new(),
+                |_| {},
+                |_| {},
+            )
+            .await
+            .unwrap();
+        assert_eq!(normal_msg.content, "Normal response without browser.");
+
+        // Turn 2: /browser prompt with URL and task
+        let approval_seen = Arc::new(AtomicUsize::new(0));
+        let seen_c = approval_seen.clone();
+        let perms_c = perms.clone();
+        let browser_msg = runtime
+            .execute_chat_turn(
+                "run-browser".into(),
+                "conv-b1".into(),
+                format!("/browser http://{web_addr}/portal Điền email và gửi biểu mẫu"),
+                vec![],
+                None,
+                None,
+                CancellationToken::new(),
+                |_| {},
+                move |req| {
+                    seen_c.fetch_add(1, Ordering::SeqCst);
+                    assert_eq!(req.category, "browser_sensitive");
+                    let p = perms_c.clone();
+                    tokio::spawn(async move {
+                        p.resolve_approval(
+                            &req.id,
+                            ApprovalDecision::AllowOnce,
+                            req.agent_id.as_deref(),
+                            &req.category,
+                            &req.affected_resources[0],
+                        )
+                        .unwrap();
+                    });
+                },
+            )
+            .await
+            .unwrap();
+
+        // Only browser_submit_form required approval (1 approval), while browser_type ran directly
+        assert_eq!(approval_seen.load(Ordering::SeqCst), 1);
+        assert!(browser_msg.content.contains("Completed form entry"));
     }
 }

@@ -43,7 +43,7 @@ pub fn initialize_params() -> serde_json::Value {
         },
         "clientInfo": {
             "name": "NOCTRA STUDIO",
-            "version": "0.1.2"
+            "version": "0.1.3"
         }
     })
 }

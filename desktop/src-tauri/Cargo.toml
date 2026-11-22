@@ -1,6 +1,6 @@
 [package]
 name = "noctra-studio"
-version = "0.1.2"
+version = "0.1.3"
 description = "NOCTRA STUDIO — Privacy-First Desktop AI Agent Platform"
 authors = ["NOCTRA STUDIO"]
 edition = "2021"

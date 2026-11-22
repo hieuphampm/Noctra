@@ -62,6 +62,10 @@
     {
       "title": "SSH Server Automation",
       "description": "Connect to remote Linux/Unix servers via password or SSH private key (stored in OS Keychain or session-only RAM) and let AI execute commands, inspect logs, and edit files automatically."
+    },
+    {
+      "title": "Browser Automation (/browser)",
+      "description": "Trigger stateful web automation explicitly via /browser <URL> [task] so AI can inspect live UI elements, click buttons/links, type into inputs, fill forms, scroll, search pages, and extract structured data with mandatory approval for sensitive actions."
     }
   ],
   "subsystems": [
@@ -99,6 +103,11 @@
       "name": "SSH Remote Automation",
       "module": "src-tauri/src/ssh/",
       "summary": "Pure-Rust async SSH client (russh) with password/keyboard-interactive & private key authentication, TOFU host fingerprint verification, OS Keychain isolation, interactive terminal runner, and built-in AI tools (ssh_exec, ssh_read_file, ssh_write_file, ssh_list_dir, ssh_system_info)."
+    },
+    {
+      "name": "Browser Automation (/browser)",
+      "module": "src-tauri/src/browser/",
+      "summary": "Stateful per-conversation browser automation engine triggered exclusively via /browser, providing cookie/history persistence, interactive UI element detection, clicking, typing, form filling/submission, scrolling, structured data extraction, CAPTCHA/login barrier detection, and mandatory confirmation for sensitive actions."
     }
   ],
   "securityModel": [

@@ -635,3 +635,89 @@ export interface SshTestResult {
   remoteWhoami: string | null;
   message: string;
 }
+
+export interface BrowserHeading {
+  level: number;
+  text: string;
+}
+
+export interface BrowserTable {
+  index: number;
+  headers: string[];
+  rows: string[][];
+}
+
+export interface BrowserElement {
+  elementId: string;
+  kind: "button" | "input" | "select" | "textarea" | "link" | "menu_item";
+  tag: string;
+  inputType: string | null;
+  label: string;
+  selector: string;
+  name: string | null;
+  htmlId: string | null;
+  placeholder: string | null;
+  href: string | null;
+  value: string | null;
+  options: string[];
+  formId: string | null;
+  disabled: boolean;
+  required: boolean;
+  isSensitive: boolean;
+  sensitivityReason: string | null;
+}
+
+export interface BrowserFormInfo {
+  formId: string;
+  htmlId: string | null;
+  name: string | null;
+  method: string;
+  actionUrl: string;
+  fieldIds: string[];
+  submitElementId: string | null;
+  isSensitive: boolean;
+  sensitivityReason: string | null;
+}
+
+export interface BrowserAuthBarrier {
+  kind: "captcha" | "login_required" | "mfa_required" | "http_auth";
+  provider: string;
+  message: string;
+  requiresUserAssistance: boolean;
+}
+
+export interface BrowserActionRecord {
+  step: number;
+  action: string;
+  target: string;
+  status: "completed" | "error" | "blocked_auth";
+  observation: string;
+  urlAfter: string | null;
+  durationMs: number;
+  timestamp: string;
+}
+
+export interface BrowserSessionSnapshot {
+  sessionId: string;
+  conversationId: string;
+  currentUrl: string | null;
+  pageTitle: string;
+  httpStatus: number | null;
+  contentType: string | null;
+  loadedAt: string | null;
+  loadTimeMs: number;
+  history: string[];
+  historyIndex: number;
+  scrollY: number;
+  viewportHeight: number;
+  pageHeight: number;
+  cookieKeys: string[];
+  headings: BrowserHeading[];
+  textPreview: string;
+  elements: BrowserElement[];
+  forms: BrowserFormInfo[];
+  fieldValues: Record<string, string>;
+  authBarrier: BrowserAuthBarrier | null;
+  actionLog: BrowserActionRecord[];
+  lastError: string | null;
+}

@@ -8,6 +8,7 @@ import type {
   AppSettings,
   ApprovalRequest,
   AuditLogEntry,
+  BrowserSessionSnapshot,
   ChatAttachment,
   ChatMessage,
   ChatStreamEvent,
@@ -262,6 +263,14 @@ export const api = {
   }) => callBackend<SshExecResult>("exec_ssh_command", params),
   resetSshHostFingerprint: (id: string) =>
     callBackend<SshServer>("reset_ssh_host_fingerprint", { id }),
+
+  // Browser Automation (/browser)
+  getBrowserSession: (conversationId: string) =>
+    callBackend<BrowserSessionSnapshot | null>("get_browser_session", { conversationId }),
+  listBrowserSessions: () =>
+    callBackend<BrowserSessionSnapshot[]>("list_browser_sessions"),
+  closeBrowserSession: (conversationId: string) =>
+    callBackend<boolean>("close_browser_session", { conversationId }),
 
   // Logs & Backup
   listAuditLogs: (limit?: number) => callBackend<AuditLogEntry[]>("list_audit_logs", { limit }),

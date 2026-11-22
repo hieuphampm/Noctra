@@ -1,4 +1,4 @@
-import { ShieldAlert, Terminal, CheckCircle2, XCircle, Globe, Server } from "lucide-react";
+import { ShieldAlert, Terminal, CheckCircle2, XCircle, Globe, Server, Compass } from "lucide-react";
 import { useAppStore } from "@/stores/appStore";
 import { useI18n } from "@/i18n";
 import { api } from "@/services/tauri";
@@ -63,6 +63,13 @@ export function ApprovalModal() {
             <div className="flex items-start gap-2 rounded-lg border border-emerald-500/35 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-300">
               <Server className="h-4 w-4 shrink-0 mt-0.5" />
               <span>{t("ssh.approvalWarning")}</span>
+            </div>
+          )}
+
+          {current.category.startsWith("browser_") && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
+              <Compass className="h-4 w-4 shrink-0 mt-0.5 text-amber-400" />
+              <span>{t("browser.approvalWarning")}</span>
             </div>
           )}
 

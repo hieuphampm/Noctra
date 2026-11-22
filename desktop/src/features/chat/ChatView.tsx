@@ -2,9 +2,11 @@ import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
+  AlertTriangle,
   Bot,
   Check,
   Columns2,
+  Compass,
   Copy,
   Download,
   Edit3,
@@ -40,6 +42,7 @@ import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import { ExecutionModeToggle } from "@/components/workspace/ExecutionModeToggle";
 import { InternetModeToggle } from "@/components/workspace/InternetModeToggle";
 import { SshQuickConnectModal } from "@/components/workspace/SshQuickConnectModal";
+import { BrowserSessionModal } from "@/components/workspace/BrowserSessionModal";
 import { ProjectTreeSidebar } from "@/components/workspace/ProjectTreeSidebar";
 import { CodeEditorPane } from "@/components/workspace/CodeEditorPane";
 import { AiChangedFilesPopup } from "@/components/workspace/AiChangedFilesPopup";
@@ -126,6 +129,11 @@ export function ChatView() {
     queryFn: () => api.listMessages(activeConvId!),
     enabled: Boolean(activeConvId) && isTauriRuntime(),
   });
+  const { data: browserSession = null } = useQuery({
+    queryKey: ["browser-session", activeConvId],
+    queryFn: () => api.getBrowserSession(activeConvId!),
+    enabled: Boolean(activeConvId) && isTauriRuntime(),
+  });
 
   const [draft, setDraft] = React.useState("");
   const [attachments, setAttachments] = React.useState<ChatAttachment[]>([]);
@@ -137,6 +145,8 @@ export function ChatView() {
   const [importingFolder, setImportingFolder] = React.useState(false);
   const [sshModalOpen, setSshModalOpen] = React.useState(false);
   const [sshModalTargetId, setSshModalTargetId] = React.useState<string | null>(null);
+  const [browserModalOpen, setBrowserModalOpen] = React.useState(false);
+  const [browserModalTab, setBrowserModalTab] = React.useState<"launch" | "session">("launch");
   const [splitRatio, setSplitRatio] = React.useState(52); // % width of IDE left pane
   const splitContainerRef = React.useRef<HTMLDivElement>(null);
   const composerRef = React.useRef<HTMLTextAreaElement>(null);
@@ -299,6 +309,8 @@ export function ChatView() {
       }
       await qc.invalidateQueries({ queryKey: ["messages", conv.id] });
       await qc.invalidateQueries({ queryKey: ["conversations"] });
+      await qc.invalidateQueries({ queryKey: ["browser-session", conv.id] });
+      await qc.invalidateQueries({ queryKey: ["browser-sessions"] });
     } catch (err) {
       setErrorMsg(String(err));
     } finally {
@@ -605,6 +617,25 @@ export function ChatView() {
               <span className="hidden sm:inline">{t("ssh.quickConnect")}</span>
             </Button>
           </div>
+
+          {/* Browser Automation (/browser) Quick Launch & Session Inspector */}
+          <Button
+            type="button"
+            size="sm"
+            variant={browserSession?.currentUrl ? "cyan" : "secondary"}
+            onClick={() => {
+              setBrowserModalTab(browserSession?.currentUrl ? "session" : "launch");
+              setBrowserModalOpen(true);
+            }}
+            title={t("browser.buttonTitle")}
+            className="h-7 px-2.5 text-[11px]"
+          >
+            <Compass className="h-3.5 w-3.5 text-[#67DDF2]" />
+            <span>{t("browser.buttonLabel")}</span>
+            {browserSession?.currentUrl && (
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            )}
+          </Button>
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -713,6 +744,77 @@ export function ChatView() {
               onClick={() => updateConvField({ sshServerId: null })}
             >
               {t("ssh.detach")}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Active Browser Automation Session Bar */}
+      {browserSession?.currentUrl && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#67DDF2]/35 bg-[#67DDF2]/10 px-4 py-1.5 text-[11px] text-[#F3F4F8]">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <Compass className="h-3.5 w-3.5 text-[#67DDF2] shrink-0" />
+            <span className="font-medium text-[#67DDF2]">{t("browser.bannerActive")}:</span>
+            <span className="font-mono text-[#F3F4F8] truncate max-w-[300px]" title={browserSession.currentUrl}>
+              {browserSession.currentUrl}
+            </span>
+            {browserSession.httpStatus && (
+              <Badge variant={browserSession.httpStatus < 400 ? "success" : "danger"}>
+                HTTP {browserSession.httpStatus}
+              </Badge>
+            )}
+            <Badge variant="default">
+              {browserSession.elements.length} {t("browser.bannerElements")}
+            </Badge>
+            {browserSession.authBarrier && (
+              <Badge variant="warning" className="flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                {browserSession.authBarrier.provider}
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Button
+              type="button"
+              size="sm"
+              variant="cyan"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => {
+                setDraft((prev) =>
+                  prev.trim().toLowerCase().startsWith("/browser")
+                    ? prev
+                    : `/browser ${prev.trimStart()}`
+                );
+                composerRef.current?.focus();
+              }}
+            >
+              {t("browser.bannerContinue")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => {
+                setBrowserModalTab("session");
+                setBrowserModalOpen(true);
+              }}
+            >
+              {t("browser.bannerInspect")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="h-6 px-2 text-[10px]"
+              onClick={async () => {
+                if (!activeConvId) return;
+                await api.closeBrowserSession(activeConvId);
+                await qc.invalidateQueries({ queryKey: ["browser-session", activeConvId] });
+                await qc.invalidateQueries({ queryKey: ["browser-sessions"] });
+              }}
+            >
+              {t("browser.bannerClose")}
             </Button>
           </div>
         </div>
@@ -1027,6 +1129,13 @@ export function ChatView() {
                 </div>
               )}
 
+              {/^\/browser(\s|$)/i.test(draft.trim()) && (
+                <div className="mb-2 flex items-center gap-2 rounded-lg border border-[#67DDF2]/35 bg-[#67DDF2]/10 px-2.5 py-1.5 text-[11px] text-[#67DDF2]">
+                  <Compass className="h-3.5 w-3.5 shrink-0" />
+                  <span>{t("browser.composerHint")}</span>
+                </div>
+              )}
+
               <textarea
                 ref={composerRef}
                 rows={3}
@@ -1100,6 +1209,26 @@ export function ChatView() {
               : {}),
           });
           await qc.invalidateQueries({ queryKey: ["ssh-servers"] });
+        }}
+      />
+
+      <BrowserSessionModal
+        open={browserModalOpen}
+        initialTab={browserModalTab}
+        session={browserSession}
+        onClose={() => setBrowserModalOpen(false)}
+        onRunCommand={(cmdText) => {
+          handleSend(cmdText);
+        }}
+        onInsertCommand={(cmdText) => {
+          setDraft(cmdText);
+          composerRef.current?.focus();
+        }}
+        onCloseSession={async () => {
+          if (!activeConvId) return;
+          await api.closeBrowserSession(activeConvId);
+          await qc.invalidateQueries({ queryKey: ["browser-session", activeConvId] });
+          await qc.invalidateQueries({ queryKey: ["browser-sessions"] });
         }}
       />
     </div>

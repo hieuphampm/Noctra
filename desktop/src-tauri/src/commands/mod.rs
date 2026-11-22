@@ -3,6 +3,7 @@ use crate::ai::{
     fetch_models, load_local_attachment, provider_secret_key, test_provider_connection,
     ProviderTestResult,
 };
+use crate::browser::BrowserSessionSnapshot;
 use crate::error::{AppError, AppResult};
 use crate::marketplace::{browse_marketplace_source, MarketplacePackageItem};
 use crate::mcp::McpHubManager;
@@ -1383,6 +1384,43 @@ pub async fn reset_ssh_host_fingerprint(
         .get_ssh_server(&id)?
         .ok_or_else(|| AppError::NotFound(format!("SSH server '{id}' not found")))?;
     Ok(state.ssh.enrich_server(srv).await)
+}
+
+// ---- BROWSER AUTOMATION (/browser) ----
+#[tauri::command]
+pub async fn get_browser_session(
+    state: State<'_, AppState>,
+    conversation_id: String,
+) -> AppResult<Option<BrowserSessionSnapshot>> {
+    Ok(state
+        .runtime
+        .browser
+        .get_session_snapshot(&conversation_id)
+        .await)
+}
+
+#[tauri::command]
+pub async fn list_browser_sessions(
+    state: State<'_, AppState>,
+) -> AppResult<Vec<BrowserSessionSnapshot>> {
+    Ok(state.runtime.browser.list_session_snapshots().await)
+}
+
+#[tauri::command]
+pub async fn close_browser_session(
+    state: State<'_, AppState>,
+    conversation_id: String,
+) -> AppResult<bool> {
+    let closed = state.runtime.browser.close_session(&conversation_id).await;
+    if closed {
+        state.db.log_event(
+            "browser",
+            "info",
+            &format!("Closed Browser Automation session for conversation '{conversation_id}'"),
+            None,
+        );
+    }
+    Ok(closed)
 }
 
 // ---- OBSERVABILITY, BACKUP & PRIVACY ----

@@ -5,6 +5,7 @@ import {
   Bot,
   ChevronLeft,
   ChevronRight,
+  Compass,
   Cpu,
   FolderKanban,
   FolderOpen,
@@ -95,6 +96,11 @@ export function AppShell() {
     queryFn: api.listSshServers,
     enabled: isTauriRuntime(),
   });
+  const { data: activeBrowserSession = null } = useQuery({
+    queryKey: ["browser-session", activeConvId],
+    queryFn: () => api.getBrowserSession(activeConvId!),
+    enabled: Boolean(activeConvId) && isTauriRuntime(),
+  });
   const { data: skills = [] } = useQuery({
     queryKey: ["skills"],
     queryFn: api.listSkills,
@@ -152,6 +158,9 @@ export function AppShell() {
           ev.toolCall
         ) {
           store.upsertStreamingToolCall(ev.toolCall);
+          if (ev.kind === "tool_result" && ev.toolCall.name.startsWith("browser_")) {
+            qc.invalidateQueries({ queryKey: ["browser-session", ev.conversationId] });
+          }
         } else if (ev.kind === "project_changed" && ev.changedPaths?.length) {
           store.addAiChangedPaths(ev.changedPaths);
           qc.invalidateQueries({ queryKey: ["project-tree"] });
@@ -622,6 +631,35 @@ export function AppShell() {
                 )}
               </div>
 
+              <div className="rounded-xl border border-[#252B3A] bg-[#121622] p-3 space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-[#9399AA]">
+                    <Compass className="h-3 w-3 text-[#67DDF2]" />
+                    {t("browser.inspectorTitle")}
+                  </span>
+                  <Badge variant={activeBrowserSession?.currentUrl ? "cyan" : "default"}>
+                    {activeBrowserSession?.currentUrl
+                      ? t("browser.inspectorActive")
+                      : "/browser"}
+                  </Badge>
+                </div>
+                {activeBrowserSession?.currentUrl ? (
+                  <>
+                    <div className="text-[11px] font-mono text-[#67DDF2] truncate" title={activeBrowserSession.currentUrl}>
+                      {activeBrowserSession.currentUrl}
+                    </div>
+                    <div className="text-[10px] text-[#9399AA] truncate">
+                      {activeBrowserSession.pageTitle} • {activeBrowserSession.elements.length}{" "}
+                      {t("browser.bannerElements")}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-[11px] text-[#9399AA]">
+                    {t("browser.inspectorIdle")}
+                  </div>
+                )}
+              </div>
+
               <div className="rounded-xl border border-[#252B3A] bg-[#121622] p-3 space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] uppercase tracking-wider text-[#9399AA]">
@@ -747,6 +785,17 @@ export function AppShell() {
             >
               <Globe className="h-3 w-3" />
               <span>{t("internet.on")}</span>
+            </button>
+          )}
+
+          {activeBrowserSession?.currentUrl && (
+            <button
+              onClick={() => setActiveSection("chat")}
+              className="flex shrink-0 items-center gap-1 rounded bg-[#67DDF2]/15 px-1.5 py-0.5 text-[10px] font-medium text-[#67DDF2] hover:bg-[#67DDF2]/25 cursor-pointer max-w-[180px]"
+              title={activeBrowserSession.currentUrl}
+            >
+              <Compass className="h-3 w-3 shrink-0" />
+              <span className="truncate">/browser</span>
             </button>
           )}
 

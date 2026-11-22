@@ -262,4 +262,50 @@ describe("NOCTRA STUDIO UI & Store", () => {
     expect(screen.getByText("Select Active AI Provider")).toBeInTheDocument();
     expect(screen.getByText("Use Provider & Open Chat")).toBeInTheDocument();
   });
+
+  it("activates /browser hint only for /browser commands, launches Browser modal, and shows sensitive browser warning in ApprovalModal", () => {
+    render(<App />);
+
+    const composer = screen.getByPlaceholderText(/Enter to send, Shift\+Enter for newline/i);
+
+    // Normal prompt does NOT trigger /browser hint
+    fireEvent.change(composer, { target: { value: "Search for example.com info" } });
+    expect(screen.queryByText(/Browser Automation \(\/browser\) detected/i)).not.toBeInTheDocument();
+
+    // Open /browser modal from toolbar and insert command
+    fireEvent.click(screen.getByRole("button", { name: /^\/browser$/i }));
+    expect(screen.getByText("Browser Automation (/browser)")).toBeInTheDocument();
+
+    const urlField = screen.getByPlaceholderText("https://example.com");
+    fireEvent.change(urlField, { target: { value: "https://example.com" } });
+    const taskField = screen.getByPlaceholderText(/Search for pricing plans/i);
+    fireEvent.change(taskField, { target: { value: "Extract headings and click Docs" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Insert into Chat" }));
+    expect((composer as HTMLTextAreaElement).value).toBe(
+      "/browser https://example.com Extract headings and click Docs"
+    );
+    expect(screen.getByText(/Browser Automation \(\/browser\) detected/i)).toBeInTheDocument();
+
+    // Sensitive browser approval warning in ApprovalModal
+    act(() => {
+      useAppStore.getState().pushApprovalRequest({
+        id: "req-browser-1",
+        agentId: null,
+        agentName: "Browser Automation",
+        category: "browser_sensitive",
+        actionSummary: "Submit form 'form-1' on 'https://example.com/checkout'",
+        reason: "Payment / checkout action detected ('checkout'). User confirmation is mandatory.",
+        toolName: "browser_submit_form",
+        affectedResources: ["https://example.com/checkout"],
+        exactPayload: { form_id: "form-1" },
+        createdAt: new Date().toISOString(),
+      });
+    });
+
+    expect(screen.getByText(/Sensitive Browser Action/i)).toBeInTheDocument();
+    expect(
+      screen.getByText("Submit form 'form-1' on 'https://example.com/checkout'")
+    ).toBeInTheDocument();
+  });
 });
