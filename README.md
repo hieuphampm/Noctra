@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/noctra_cover_banner.jpg" alt="NOCTRA — Your AI. Your Rules. Your Own Ecosystem." width="100%" />
+</p>
+
 # NOCTRA
 
 > **"YOUR AI. YOUR RULES. YOUR OWN ECOSYSTEM."**
@@ -13,6 +17,7 @@
 ```text
 noctra/
 ├── android/     # NOCTRA AI — Privacy-first Android AI chat app (Flutter & Dart)
+├── assets/      # Brand & README media assets
 ├── desktop/     # NOCTRA STUDIO — Desktop AI agent, MCP & workflow platform (Tauri 2, Rust, React)
 └── web-ui/      # NOCTRA Official Website, Download Center & MDX Docs (Next.js App Router)
 ```
@@ -42,6 +47,9 @@ A desktop AI agent, MCP, Skills, and workflow orchestration platform built with 
 - **Agent Builder & Multi-Agent Runtime**: Scoped models, directory path containment, execution limits (`maxSteps`, `maxToolCalls`, `maxRuntimeSecs`, `maxAgentDepth`), and isolated agent memory.
 - **Skills Center & GitHub Inspector**: `SKILL.md` YAML frontmatter + Markdown authoring, local/ZIP import, and pre-install GitHub repository inspection (external skills are flagged `unverified` by default; `scripts/` are never auto-executed).
 - **Visual Workflow Engine**: Pausable, cancellable DAG workflow execution with `Approval` gates and persisted SQLite run history.
+- **Internet Mode & Security Scanner**: Opt-in per-conversation TCP port scanning, DNS lookup, HTTP/HTTPS security header audits, and safe URL fetching with SSRF/allowlist guardrails.
+- **SSH Server Automation**: Pure-Rust async SSH client (`russh`) with OS Keychain credential storage, TOFU host key verification, interactive command runner, and built-in AI server automation tools (`ssh_exec`, `ssh_read_file`, `ssh_write_file`, `ssh_list_dir`, `ssh_system_info`).
+- **Browser Automation (`/browser`)**: Explicit slash-command web automation triggered directly in chat (`/browser <URL> [task]`) with persistent per-conversation browser sessions, interactive UI element detection, clicking, typing, form filling/submission, scrolling, data extraction, CAPTCHA/login barrier alerts, and mandatory user confirmation for sensitive actions.
 - **Security & OS Keyring**: Secrets stored in Windows Credential Manager, macOS Keychain, or Linux Secret Service via `keyring`, with `SecretRedactor` log scrubbing.
 
 See [`desktop/README.md`](desktop/README.md), [`desktop/docs/ARCHITECTURE.md`](desktop/docs/ARCHITECTURE.md), and [`desktop/docs/SECURITY.md`](desktop/docs/SECURITY.md).
@@ -95,3 +103,9 @@ NOCTRA clients operate without mandatory user accounts, developer telemetry, or 
 ## Releases
 
 Pre-release build artifacts are published on [GitHub Releases](https://github.com/hieuphampm/Noctra/releases).
+
+---
+
+## License
+
+See [`LICENSE.md`](LICENSE.md) for license terms.
