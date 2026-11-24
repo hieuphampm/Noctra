@@ -106,6 +106,12 @@ Pre-release build artifacts are published on [GitHub Releases](https://github.co
 
 ---
 
+## Contributing
+
+Contributions, bug reports, and security reviews are welcome! Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) for development setup, architectural/security guidelines, and Pull Request conventions.
+
+---
+
 ## License
 
 See [`LICENSE.md`](LICENSE.md) for license terms.
